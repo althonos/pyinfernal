@@ -1,11 +1,12 @@
 from libc cimport errno
 from libc.stdio cimport FILE, fopen, fclose
 from libc.stdint cimport uint32_t, uint64_t, int64_t
-from libc.stdlib cimport free
+from libc.stdlib cimport malloc, calloc, free
 from libc.string cimport memset, memcpy, memmove, strdup, strlen
 
 cimport libeasel
 cimport libeasel.vec
+cimport libeasel.fileparser
 cimport libhmmer.p7_bg
 cimport libhmmer.p7_profile
 cimport libhmmer.p7_hmm
@@ -21,12 +22,14 @@ cimport libinfernal.cm_modelconfig
 cimport libinfernal.cm_p7_modelconfig
 from libeasel cimport eslERRBUFSIZE
 from libeasel.alphabet cimport ESL_ALPHABET
+from libeasel.fileparser cimport ESL_FILEPARSER
 from libeasel.sq cimport ESL_SQ
 from libeasel.random cimport ESL_RANDOMNESS
 from libhmmer.p7_hmm cimport P7_HMM
+from libhmmer.p7_hmmfile cimport P7_HMMFILE
 from libhmmer.logsum cimport p7_FLogsumInit
 from libinfernal cimport CM_p7_NEVPARAM
-from libinfernal.cm_file cimport CM_FILE
+from libinfernal.cm_file cimport CM_FILE, cm_file_formats_e
 from libinfernal.cm_pipeline cimport CM_PIPELINE, cm_zsetby_e, cm_pipemodes_e, cm_newmodelmodes_e
 from libinfernal.cm_tophits cimport CM_TOPHITS, CM_HIT
 from libinfernal.cm cimport CM_t
@@ -65,7 +68,9 @@ include "exceptions.pxi"
 
 # --- Python imports ---------------------------------------------------------
 
+import io
 import os
+import sys
 import warnings
 from pyhmmer.errors import (
     UnexpectedError,
@@ -78,6 +83,18 @@ from pyhmmer.errors import (
 # --- Constants --------------------------------------------------------------
 
 __version__ = PROJECT_VERSION
+
+cdef dict CM_FILE_FORMATS = {
+    "2.0": cm_file_formats_e.CM_FILE_1,
+    "3/a": cm_file_formats_e.CM_FILE_1a,
+}
+
+cdef dict CM_FILE_MAGIC = {
+    # v1a_magic:  cm_file_formats_e.CM_FILE_1,
+    # v1a_fmagic: cm_file_formats_e.CM_FILE_1a,
+    0xe3edb0b2: cm_file_formats_e.CM_FILE_1,
+    0xb1e1e6f3: cm_file_formats_e.CM_FILE_1a,
+}
 
 # --- Fused types ------------------------------------------------------------
 
@@ -177,7 +194,134 @@ cdef class CMFile:
     cdef str      _name
     cdef Alphabet _alphabet
 
+    # --- Constructor --------------------------------------------------------
+
+    @staticmethod
+    cdef CM_FILE* _open_fileobj(object fh) except *:
+        cdef int         status
+        cdef char*       token
+        cdef int         token_len
+        cdef bytes       filename
+        cdef object      fh_       = fh
+        cdef CM_FILE*    cmfp      = NULL
+
+        # use buffered IO to be able to peek efficiently
+        if not hasattr(fh, "peek"):
+            fh_ = io.BufferedReader(fh)
+
+        # attempt to allocate space for the P7_HMMFILE
+        cmfp = <CM_FILE*> malloc(sizeof(CM_FILE))
+        if cmfp == NULL:
+            raise AllocationError("CM_FILE", sizeof(CM_FILE))
+
+        # store options
+        cmfp.f            = fopen_obj(fh_, "r")
+        cmfp.do_stdin     = False
+        cmfp.do_gzip      = False
+        cmfp.newly_opened = True
+        cmfp.is_pressed   = False
+        cmfp.is_binary    = False
+
+        # set pointers as NULL for now
+        cmfp.parser    = NULL
+        cmfp.efp       = NULL
+        cmfp.ffp       = NULL
+        cmfp.hfp       = NULL
+        cmfp.pfp       = NULL
+        cmfp.ssi       = NULL
+        cmfp.fname     = NULL
+        cmfp.errbuf[0] = b"\0"
+
+        # set up the HMM file 
+        cmfp.hfp = <P7_HMMFILE*> malloc(sizeof(P7_HMMFILE))
+        if cmfp.hfp == NULL:
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise AllocationError("P7_HMMFILE", sizeof(P7_HMMFILE))
+        cmfp.hfp.do_gzip      = cmfp.do_gzip
+        cmfp.hfp.do_stdin     = cmfp.do_stdin
+        cmfp.hfp.newly_opened = True
+        cmfp.hfp.is_pressed   = cmfp.is_pressed
+        cmfp.hfp.parser       = NULL
+        cmfp.hfp.efp          = NULL
+        cmfp.hfp.ffp          = NULL
+        cmfp.hfp.pfp          = NULL
+        cmfp.hfp.ssi          = NULL
+        cmfp.hfp.errbuf[0]    = '\0'
+
+        # NOTE(@althonos): We open the file separately to avoid a double free
+        #                  when cmfp.hfp is free with p7_hmmfile_Close in 
+        #                  cm_file_Close.
+        cmfp.hfp.f            = fopen_obj(fh_, "r")
+
+        # extract the filename if the file handle has a `name` attribute
+        if getattr(fh, "name", None) is not None:
+            filename = fh.name.encode()
+            cmfp.fname = strdup(filename)
+            if cmfp.fname == NULL:
+                libinfernal.cm_file.cm_file_Close(cmfp)
+                raise AllocationError("char", sizeof(char), strlen(filename))
+            cmfp.hfp.fname = strdup(filename)
+            if cmfp.hfp.fname:
+                libinfernal.cm_file.cm_file_Close(cmfp)
+                raise AllocationError("char", sizeof(char), strlen(filename))
+
+        # check if the parser is in binary format,
+        magic = int.from_bytes(fh_.peek(4)[:4], sys.byteorder)
+        if magic in CM_FILE_MAGIC:
+            cmfp.format = CM_FILE_MAGIC[magic]
+            cmfp.parser = libinfernal.cm_file.read_bin_1p1_cm
+            cmfp.is_binary = True
+            # NB: the file must be advanced, since read_bin_1p1_cm assumes
+            #     the binary tag has been skipped already, buf we only peeked
+            #     so far; note that we advance without seeking or rewinding.
+            fh_.read(4)
+            return cmfp
+        elif (magic & 0x80000000) != 0:
+            raise ValueError(f"Format tag appears binary, but unrecognized: 0x{magic:08x}")
+
+        # create and configure the file parser
+        cmfp.efp = libeasel.fileparser.esl_fileparser_Create(cmfp.f)
+        if cmfp.efp == NULL:
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise AllocationError("ESL_FILEPARSER", sizeof(ESL_FILEPARSER))
+        status = libeasel.fileparser.esl_fileparser_SetCommentChar(cmfp.efp, b"#")
+        if status != libeasel.eslOK:
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise UnexpectedError(status, "esl_fileparser_SetCommentChar")
+
+        # get the magic string at the beginning
+        status = libeasel.fileparser.esl_fileparser_NextLine(cmfp.efp)
+        if status == libeasel.eslEOF:
+            raise EOFError("CM file is empty")
+        elif status != libeasel.eslOK:
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise UnexpectedError(status, "esl_fileparser_NextLine")
+        status = libeasel.fileparser.esl_fileparser_GetToken(cmfp.efp, &token, &token_len)
+        if status != libeasel.eslOK:
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise UnexpectedError(status, "esl_fileparser_GetToken")
+
+        # detect the format
+        if token == b"INFERNAL1/a":
+            cmfp.parser = libinfernal.cm_file.read_asc_1p1_cm
+            cmfp.format = cm_file_formats_e.CM_FILE_1a
+        elif token == b"INFERNAL-1":
+            cmfp.parser = libinfernal.cm_file.read_asc_1p0_cm
+            cmfp.format = cm_file_formats_e.CM_FILE_1
+
+        # check the format tag was recognized
+        if cmfp.parser == NULL:
+            text = token.decode("utf-8", "replace")
+            libinfernal.cm_file.cm_file_Close(cmfp)
+            raise ValueError("Unrecognized format tag in CM file: {!r}".format(text))
+
+        # return the finalized CM_FILE*
+        return cmfp
+
+    # --- Magic methods ------------------------------------------------------
+
     def __cinit__(self):
+        self._alphabet = None
         self._fp = NULL
         self._name = None
 
@@ -189,15 +333,15 @@ cdef class CMFile:
         try:
             fspath = os.fsencode(file)
             self._name = os.fsdecode(fspath)
+            if db:
+                function = "cm_file_Open"
+                status = libinfernal.cm_file.cm_file_Open(fspath, NULL, True, &self._fp, errbuf)
+            else:
+                function = "cm_file_OpenNoDb"
+                status = libinfernal.cm_file.cm_file_OpenNoDB(fspath, NULL, True, &self._fp, errbuf)
         except TypeError as e:
-            raise NotImplementedError("CMFile with file-like object") from e
-
-        if db:
-            function = "cm_file_Open"
-            status = libinfernal.cm_file.cm_file_Open(fspath, NULL, True, &self._fp, errbuf)
-        else:
-            function = "cm_file_OpenNoDb"
-            status = libinfernal.cm_file.cm_file_OpenNoDB(fspath, NULL, True, &self._fp, errbuf)
+            self._fp = CMFile._open_fileobj(file)
+            status   = libeasel.eslOK
 
         if status == libeasel.eslENOTFOUND:
             raise FileNotFoundError(errno.ENOENT, f"No such file or directory: {file!r}")
