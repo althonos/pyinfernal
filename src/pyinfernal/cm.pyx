@@ -246,6 +246,7 @@ cdef class CMFile:
         cmfp.hfp.ffp          = NULL
         cmfp.hfp.pfp          = NULL
         cmfp.hfp.ssi          = NULL
+        cmfp.hfp.fname        = NULL
         cmfp.hfp.errbuf[0]    = '\0'
 
         # NOTE(@althonos): We open the file separately to avoid a double free
