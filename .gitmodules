@@ -1,0 +1,3 @@
+[submodule "vendor/infernal"]
+	path = vendor/infernal
+	url = https://github.com/EddyRivasLab/infernal
