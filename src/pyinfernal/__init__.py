@@ -29,6 +29,6 @@ __all__ = [
 if __doc__ is not None:
     __doc__ += """See Also:
     An online rendered version of the documentation for this version of the
-    library on `Read The Docs <https://pyhmmer.readthedocs.io/en/v{}/>`_.
+    library on `Read The Docs <https://pyinfernal.readthedocs.io/en/v{}/>`_.
 
     """.format(__version__)
