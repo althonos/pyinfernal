@@ -1,0 +1,42 @@
+diff --git a/src/cm_file.c b/src/cm_file.c
+index a6d4376c..2d9c2552 100644
+--- a/src/cm_file.c
++++ b/src/cm_file.c
+@@ -55,10 +55,6 @@ static uint32_t  v1a_fmagic = 0xb1e1e6f3; /* 1/a binary MSV/SSV file: "1afs" = 0
+  * derives from its text string.
+  */
+ 
+-static int read_asc_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
+-static int read_bin_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
+-static int read_asc_1p0_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
+-
+ static int   write_bin_string(FILE *fp, char *s);
+ static int   read_bin_string (FILE *fp, char **ret_s);
+ 
+@@ -1535,7 +1531,7 @@ cm_p7_oprofile_ReadBlockMSV(CM_FILE *cmfp, int64_t idx0, ESL_ALPHABET **byp_abc,
+  *             is left in its original state as passed by the caller, and <*ret_hmm> is
+  *             returned <NULL>.
+  */
+-static int
++int
+ read_asc_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+ {
+   int           status;
+@@ -2120,7 +2116,7 @@ read_asc_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
+ }
+ 
+ 
+-static int
++int
+ read_bin_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+ {
+   ESL_ALPHABET *abc = NULL;
+@@ -2308,7 +2304,7 @@ read_bin_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
+  * in the prototype so that read_asc_1p0_cm is consistent with
+  * other parser prototypes.
+  */
+-static int  
++int  
+ read_asc_1p0_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+ {
+   int     status;

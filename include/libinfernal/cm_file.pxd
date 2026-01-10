@@ -38,6 +38,10 @@ cdef extern from "infernal.h" nogil:
         char          msv_errbuf[eslERRBUFSIZE]
     ctypedef cm_file_s CM_FILE
 
+    int read_asc_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+    int read_bin_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+    int read_asc_1p0_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
+
     int     cm_file_Open(char *filename, char *env, bint allow_1p0, CM_FILE **ret_cmfp, char *errbuf) except *
     int     cm_file_OpenNoDB(char *filename, char *env, bint allow_1p0, CM_FILE **ret_cmfp, char *errbuf) except *
     int     cm_file_OpenBuffer(char *buffer, int size, bint allow_1p0, CM_FILE **ret_cmfp) except *

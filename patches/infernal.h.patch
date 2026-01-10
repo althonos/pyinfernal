@@ -1,0 +1,16 @@
+diff --git a/src/infernal.h b/src/infernal.h
+index 479022bc..d81a74e4 100644
+--- a/src/infernal.h
++++ b/src/infernal.h
+@@ -2776,6 +2776,11 @@ extern void debug_print_shadow_banded(void ***shadow, CM_t *cm, int L, int *dmin
+ extern void debug_print_shadow_banded_deck(int v, void ***shadow, CM_t *cm, int L, int *dmin, int *dmax);
+ 
+ /* from cm_file.c */
++
++extern int read_asc_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
++extern int read_bin_1p1_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
++extern int read_asc_1p0_cm(CM_FILE *hfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm);
++
+ extern int     cm_file_Open(char *filename, char *env, int allow_1p0, CM_FILE **ret_cmfp, char *errbuf);
+ extern int     cm_file_OpenNoDB(char *filename, char *env, int allow_1p0, CM_FILE **ret_cmfp, char *errbuf);
+ extern int     cm_file_OpenBuffer(char *buffer, int size, int allow_1p0, CM_FILE **ret_cmfp);
