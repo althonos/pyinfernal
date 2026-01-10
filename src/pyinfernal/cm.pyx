@@ -150,6 +150,27 @@ cdef class CM:
 
 cdef class CMFile:
     """A wrapper around a file storing serialized CMs.
+
+    Example:
+        Load the first CM from a CM file located on the
+        local filesystem::
+
+            >>> with CMFile("tests/data/cms/iss33.cm") as cm_file:
+            ...     cm = cm_file.read()
+            >>> cm.name
+            b'LSU_rRNA_bacteria'
+            >>> cm.accession
+            b'RF02541'
+
+        Load all the CMs from a CM file into a `list`::
+
+            >>> with CMFile("tests/data/cms/5.c.cm") as cm_file:
+            ...     cms = list(cm_file)
+            >>> len(cms)
+            5
+            >>> [cm.accession for cm in cms]
+            [b'RF00005', b'RF00006', b'RF01185', b'RF01855', b'RF01852']
+
     """
 
     cdef CM_FILE* _fp
@@ -287,7 +308,7 @@ cdef class CMFile:
         This method has no effect if the file is already closed. It is called
         automatically if the `CMFile` was used in a context::
 
-            >>> with CMFile("tests/data/xyz.cm") as cm_file:
+            >>> with CMFile("tests/data/cms/5.c.cm") as cm_file:
             ...     cm = cm_file.read()
 
         """
