@@ -1,0 +1,463 @@
+diff --git a/src/cm_pipeline.c b/src/cm_pipeline.c
+index 93964d4b..1559b385 100644
+--- a/src/cm_pipeline.c
++++ b/src/cm_pipeline.c
+@@ -173,7 +173,7 @@ CM_PIPELINE *
+ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint, int64_t Z, enum cm_zsetby_e Z_setby, enum cm_pipemodes_e mode)
+ {
+   CM_PIPELINE *pli  = NULL;
+-  int          seed = esl_opt_GetInteger(go, "--seed");
++  int          seed = (go ? esl_opt_GetInteger(go, "--seed") : 181);
+   int          status;
+   double       Z_Mb; /* database size in Mb */
+   int          pass_idx; /* counter over passes */
+@@ -224,7 +224,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   pli->ddef->do_reseeding = pli->do_reseeding;
+ 
+   /* Miscellaneous parameters */
+-  if(esl_opt_IsOn(go, "--mxsize")) { 
++  if(go && esl_opt_IsOn(go, "--mxsize")) { 
+     pli->mxsize_limit = esl_opt_GetReal(go, "--mxsize");
+     pli->mxsize_set   = TRUE;
+   }
+@@ -232,24 +232,24 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->mxsize_limit = 0.;
+     pli->mxsize_set   = FALSE;
+   }  
+-  pli->do_top             = esl_opt_GetBoolean(go, "--bottomonly") ? FALSE : TRUE;
+-  pli->do_bot             = esl_opt_GetBoolean(go, "--toponly")    ? FALSE : TRUE;
+-  pli->be_verbose         = esl_opt_GetBoolean(go, "--verbose")    ? TRUE  : FALSE;
+-  pli->show_accessions    = esl_opt_GetBoolean(go, "--acc")        ? TRUE  : FALSE;
+-  pli->show_alignments    = esl_opt_GetBoolean(go, "--noali")      ? FALSE : TRUE;
+-  pli->maxtau             = esl_opt_GetReal   (go, "--maxtau");
+-  pli->do_wcx             = esl_opt_IsUsed    (go, "--wcx")        ? TRUE  : FALSE;
+-  pli->wcx                = esl_opt_IsUsed    (go, "--wcx")        ? esl_opt_GetReal(go, "--wcx") : 0.;
+-  pli->do_one_cmpass      = esl_opt_GetBoolean(go, "--onepass")    ? TRUE  : FALSE;
+-  pli->do_one_cmpass_olap = esl_opt_GetBoolean(go, "--olonepass")  ? TRUE  : FALSE;
+-  pli->do_not_iterate     = esl_opt_GetBoolean(go, "--noiter")     ? TRUE  : FALSE;
+-  pli->do_time_F1         = esl_opt_GetBoolean(go, "--timeF1")     ? TRUE  : FALSE;
+-  pli->do_time_F2         = esl_opt_GetBoolean(go, "--timeF2")     ? TRUE  : FALSE;
+-  pli->do_time_F3         = esl_opt_GetBoolean(go, "--timeF3")     ? TRUE  : FALSE;
+-  pli->do_time_F4         = esl_opt_GetBoolean(go, "--timeF4")     ? TRUE  : FALSE;
+-  pli->do_time_F5         = esl_opt_GetBoolean(go, "--timeF5")     ? TRUE  : FALSE;
+-  pli->do_time_F6         = esl_opt_GetBoolean(go, "--timeF6")     ? TRUE  : FALSE;
+-  pli->do_trm_F3          = esl_opt_GetBoolean(go, "--trmF3")      ? TRUE  : FALSE;
++  pli->do_top             = (go && esl_opt_GetBoolean(go, "--bottomonly")) ? FALSE : TRUE;
++  pli->do_bot             = (go && esl_opt_GetBoolean(go, "--toponly"))    ? FALSE : TRUE;
++  pli->be_verbose         = (go && esl_opt_GetBoolean(go, "--verbose"))    ? TRUE  : FALSE;
++  pli->show_accessions    = (go && esl_opt_GetBoolean(go, "--acc"))        ? TRUE  : FALSE;
++  pli->show_alignments    = (go && esl_opt_GetBoolean(go, "--noali"))      ? FALSE : TRUE;
++  pli->maxtau             = (go && esl_opt_IsUsed    (go, "--maxtau")      ? esl_opt_GetReal(go, "--maxtau") : 0.01 );
++  pli->do_wcx             = (go && esl_opt_IsUsed    (go, "--wcx"))        ? TRUE  : FALSE;
++  pli->wcx                = (go && esl_opt_IsUsed    (go, "--wcx"))        ? esl_opt_GetReal(go, "--wcx") : 0.;
++  pli->do_one_cmpass      = (go && esl_opt_GetBoolean(go, "--onepass"))    ? TRUE  : FALSE;
++  pli->do_one_cmpass_olap = (go && esl_opt_GetBoolean(go, "--olonepass"))  ? TRUE  : FALSE;
++  pli->do_not_iterate     = (go && esl_opt_GetBoolean(go, "--noiter"))     ? TRUE  : FALSE;
++  pli->do_time_F1         = (go && esl_opt_GetBoolean(go, "--timeF1"))     ? TRUE  : FALSE;
++  pli->do_time_F2         = (go && esl_opt_GetBoolean(go, "--timeF2"))     ? TRUE  : FALSE;
++  pli->do_time_F3         = (go && esl_opt_GetBoolean(go, "--timeF3"))     ? TRUE  : FALSE;
++  pli->do_time_F4         = (go && esl_opt_GetBoolean(go, "--timeF4"))     ? TRUE  : FALSE;
++  pli->do_time_F5         = (go && esl_opt_GetBoolean(go, "--timeF5"))     ? TRUE  : FALSE;
++  pli->do_time_F6         = (go && esl_opt_GetBoolean(go, "--timeF6"))     ? TRUE  : FALSE;
++  pli->do_trm_F3          = (go && esl_opt_GetBoolean(go, "--trmF3"))      ? TRUE  : FALSE;
+ 
+   /* hard-coded miscellaneous parameters that were command-line
+    * settable in past testing, and could be in future testing.
+@@ -265,39 +265,39 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   
+   /* Configure reporting thresholds */
+   pli->by_E            = TRUE;
+-  pli->E               = esl_opt_GetReal(go, "-E");
++  pli->E               = go ? esl_opt_GetReal(go, "-E") : 10.0;
+   pli->T               = 0.0;
+   pli->use_bit_cutoffs = FALSE;
+-  if (esl_opt_IsOn(go, "-T")) { 
++  if (go && esl_opt_IsOn(go, "-T")) { 
+     pli->T    = esl_opt_GetReal(go, "-T"); 
+     pli->by_E = FALSE;
+   } 
+ 
+   /* Configure inclusion thresholds */
+   pli->inc_by_E           = TRUE;
+-  pli->incE               = esl_opt_GetReal(go, "--incE");
++  pli->incE               = go ? esl_opt_GetReal(go, "--incE") : 0.01;
+   pli->incT               = 0.0;
+-  if (esl_opt_IsOn(go, "--incT")) { 
++  if (go && esl_opt_IsOn(go, "--incT")) { 
+     pli->incT     = esl_opt_GetReal(go, "--incT"); 
+     pli->inc_by_E = FALSE;
+   } 
+ 
+   /* Configure for one of the model-specific thresholding options */
+-  if (esl_opt_GetBoolean(go, "--cut_ga")) {
++  if (go && esl_opt_GetBoolean(go, "--cut_ga")) {
+     pli->T        = 0.0;
+     pli->by_E     = FALSE;
+     pli->incT     = 0.0;
+     pli->inc_by_E = FALSE;
+     pli->use_bit_cutoffs = CMH_GA;
+   }
+-  if (esl_opt_GetBoolean(go, "--cut_nc")) { 
++  if (go && esl_opt_GetBoolean(go, "--cut_nc")) { 
+     pli->T        = 0.0;
+     pli->by_E     = FALSE;
+     pli->incT     = 0.0;
+     pli->inc_by_E = FALSE;
+     pli->use_bit_cutoffs = CMH_NC;
+   }
+-  if (esl_opt_GetBoolean(go, "--cut_tc")) { 
++  if (go && esl_opt_GetBoolean(go, "--cut_tc")) { 
+     pli->T        = 0.0;
+     pli->by_E     = FALSE;
+     pli->incT     = 0.0;
+@@ -306,17 +306,17 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   }
+ 
+   /* Configure envelope definition parameters */
+-  pli->rt1            = esl_opt_GetReal(go, "--rt1");
+-  pli->rt2            = esl_opt_GetReal(go, "--rt2");
+-  pli->rt3            = esl_opt_GetReal(go, "--rt3");
+-  pli->ns             = esl_opt_GetInteger(go, "--ns");
++  pli->rt1            = go ? esl_opt_GetReal(go, "--rt1") : 0.25;
++  pli->rt2            = go ? esl_opt_GetReal(go, "--rt2") : 0.10;
++  pli->rt3            = go ? esl_opt_GetReal(go, "--rt3") : 0.20;
++  pli->ns             = go ? esl_opt_GetInteger(go, "--ns") : 200;
+   pli->ddef->rt1      = pli->rt1;
+   pli->ddef->rt2      = pli->rt2;
+   pli->ddef->rt3      = pli->rt3;
+   pli->ddef->nsamples = pli->ns;
+ 
+   /* configure truncation hit allowance parameters */
+-  if(esl_opt_GetBoolean(go, "--anytrunc")) { 
++  if(go && esl_opt_GetBoolean(go, "--anytrunc")) { 
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = TRUE;
+     pli->do_trunc_int     = FALSE;
+@@ -324,7 +324,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--inttrunc")) {
++  else if(go && esl_opt_GetBoolean(go, "--inttrunc")) {
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = FALSE;
+     pli->do_trunc_int     = TRUE;
+@@ -332,7 +332,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--onlytrunc")) {
++  else if(go && esl_opt_GetBoolean(go, "--onlytrunc")) {
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = FALSE;
+     pli->do_trunc_int     = FALSE;
+@@ -340,7 +340,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--notrunc")) { 
++  else if(go && esl_opt_GetBoolean(go, "--notrunc")) { 
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = FALSE;
+     pli->do_trunc_int     = FALSE;
+@@ -348,7 +348,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--5trunc")) { 
++  else if(go && esl_opt_GetBoolean(go, "--5trunc")) { 
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = FALSE;
+     pli->do_trunc_int     = FALSE;
+@@ -356,7 +356,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = TRUE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--3trunc")) { 
++  else if(go && esl_opt_GetBoolean(go, "--3trunc")) { 
+     pli->do_trunc_ends    = FALSE;
+     pli->do_trunc_any     = FALSE;
+     pli->do_trunc_int     = FALSE;
+@@ -380,7 +380,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+    * database size was passed in, if -Z <x> enabled, we overwrite the
+    * passed in value with <x>.
+    */
+-  if (esl_opt_IsOn(go, "-Z")) { 
++  if (go && esl_opt_IsOn(go, "-Z")) { 
+       pli->Z_setby = CM_ZSETBY_OPTION;
+       pli->Z       = (int64_t) (esl_opt_GetReal(go, "-Z") * 1000000.); 
+   }
+@@ -438,7 +438,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   pli->do_edefbias       = FALSE;
+   pli->do_fcyk           = TRUE;
+ 
+-  if(esl_opt_GetBoolean(go, "--max")) { 
++  if(go && esl_opt_GetBoolean(go, "--max")) { 
+     pli->do_max = TRUE;
+     pli->do_msv     = pli->do_vit     = pli->do_fwd     = pli->do_gfwd     = pli->do_edef     = pli->do_fcyk    = FALSE; 
+     pli->do_msvbias = pli->do_vitbias = pli->do_fwdbias = pli->do_gfwdbias = pli->do_edefbias = pli->do_fcykenv = FALSE;
+@@ -452,7 +452,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--nohmm")) { 
++  else if(go && esl_opt_GetBoolean(go, "--nohmm")) { 
+     pli->do_nohmm  = TRUE;
+     pli->do_msv     = pli->do_vit     = pli->do_fwd     = pli->do_gfwd     = pli->do_edef     = FALSE;
+     pli->do_msvbias = pli->do_vitbias = pli->do_fwdbias = pli->do_gfwdbias = pli->do_edefbias = FALSE;
+@@ -467,7 +467,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->do_trunc_5p_ends = FALSE;
+     pli->do_trunc_3p_ends = FALSE;
+   }
+-  else if(esl_opt_GetBoolean(go, "--mid")) { 
++  else if(go && esl_opt_GetBoolean(go, "--mid")) { 
+     pli->do_mid  = TRUE;
+     pli->do_msv     = pli->do_vit     = FALSE;
+     pli->do_msvbias = pli->do_vitbias = FALSE;
+@@ -476,7 +476,7 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     pli->F3  = pli->F3b = pli->F4 = pli->F4b = pli->F5 = pli->F5b = esl_opt_GetReal(go, "--Fmid");
+     pli->F6  = 0.0001; /* default F6, we'll change this below if --F6 was used */
+   }
+-  else if(esl_opt_GetBoolean(go, "--rfam")) { 
++  else if(go && esl_opt_GetBoolean(go, "--rfam")) { 
+     pli->do_rfam = TRUE;
+     pli->F1 = 0.06;
+     pli->F2 = pli->F2b = 0.02;
+@@ -494,14 +494,14 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+      * threshold combinations.  xref:
+      * ~nawrockie/notebook/11_0513_inf_dcmsearch_thresholds/00LOG
+      */
+-    Z_Mb = esl_opt_IsOn(go, "--FZ") ? esl_opt_GetReal(go, "--FZ") : pli->Z / 1000000.;
++    Z_Mb = (go && esl_opt_IsOn(go, "--FZ")) ? esl_opt_GetReal(go, "--FZ") : pli->Z / 1000000.;
+     /* None of --max, --nohmm, --mid, --rfam enabled, use default
+      * strategy, set filter thresholds dependent on Z, which was set
+      * above. These default thresholds are hard-coded and were determined
+      * by a systematic search over possible filter threshold combinations.
+      * xref: ~nawrockie/notebook/12_0319_inf_finalize_filter_thresholds/00LOG
+      */
+-    Z_Mb = esl_opt_IsUsed(go, "--FZ") ? esl_opt_GetReal(go, "--FZ") : pli->Z / 1000000.;
++    Z_Mb = (go && esl_opt_IsUsed(go, "--FZ")) ? esl_opt_GetReal(go, "--FZ") : pli->Z / 1000000.;
+ 
+     /* turn off MSV bias filter and env def bias filter */
+     pli->do_msvbias = pli->do_edefbias = FALSE;
+@@ -572,36 +572,36 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+    * combinations.
+    */
+   if((! pli->do_max) && (! pli->do_nohmm) && (! pli->do_mid)) { 
+-    if(esl_opt_IsOn(go, "--F1"))  { pli->do_msv      = TRUE; pli->F1  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F1"));  }
+-    if(esl_opt_IsOn(go, "--F1b")) { pli->do_msvbias  = TRUE; pli->F1b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F1b")); }
+-    if(esl_opt_IsOn(go, "--F2"))  { pli->do_vit      = TRUE; pli->F2  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F2"));  }
+-    if(esl_opt_IsOn(go, "--F2b")) { pli->do_vitbias  = TRUE; pli->F2b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F2b")); }
++    if(go && esl_opt_IsOn(go, "--F1"))  { pli->do_msv      = TRUE; pli->F1  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F1"));  }
++    if(go && esl_opt_IsOn(go, "--F1b")) { pli->do_msvbias  = TRUE; pli->F1b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F1b")); }
++    if(go && esl_opt_IsOn(go, "--F2"))  { pli->do_vit      = TRUE; pli->F2  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F2"));  }
++    if(go && esl_opt_IsOn(go, "--F2b")) { pli->do_vitbias  = TRUE; pli->F2b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F2b")); }
+   }
+   if((! pli->do_max) && (! pli->do_nohmm)) { 
+-    if(esl_opt_IsOn(go, "--F3"))  { pli->do_fwd        = TRUE; pli->F3  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F3"));  }
+-    if(esl_opt_IsOn(go, "--F3b")) { pli->do_fwdbias    = TRUE; pli->F3b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F3b")); }
+-    if(esl_opt_IsOn(go, "--F4"))  { pli->do_gfwd       = TRUE; pli->F4  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F4"));  }
+-    if(esl_opt_IsOn(go, "--F4b")) { pli->do_gfwdbias   = TRUE; pli->F4b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F4b")); }
+-    if(esl_opt_IsOn(go, "--F5"))  { pli->do_edef       = TRUE; pli->F5  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F5"));  }
+-    if(esl_opt_IsOn(go, "--F5b")) { pli->do_edefbias   = TRUE; pli->F5b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F5b")); }
++    if(go && esl_opt_IsOn(go, "--F3"))  { pli->do_fwd        = TRUE; pli->F3  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F3"));  }
++    if(go && esl_opt_IsOn(go, "--F3b")) { pli->do_fwdbias    = TRUE; pli->F3b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F3b")); }
++    if(go && esl_opt_IsOn(go, "--F4"))  { pli->do_gfwd       = TRUE; pli->F4  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F4"));  }
++    if(go && esl_opt_IsOn(go, "--F4b")) { pli->do_gfwdbias   = TRUE; pli->F4b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F4b")); }
++    if(go && esl_opt_IsOn(go, "--F5"))  { pli->do_edef       = TRUE; pli->F5  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F5"));  }
++    if(go && esl_opt_IsOn(go, "--F5b")) { pli->do_edefbias   = TRUE; pli->F5b = ESL_MIN(1.0, esl_opt_GetReal(go, "--F5b")); }
+   }
+   if(! pli->do_max) { 
+-    if(esl_opt_IsOn(go, "--F6"))  { pli->do_fcyk     = TRUE; pli->F6  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F6"));  }
++    if(go && esl_opt_IsOn(go, "--F6"))  { pli->do_fcyk     = TRUE; pli->F6  = ESL_MIN(1.0, esl_opt_GetReal(go, "--F6"));  }
+   }
+ 
+-  if(esl_opt_GetBoolean(go, "--noF1"))     pli->do_msv  = FALSE; 
+-  if(esl_opt_GetBoolean(go, "--noF2"))     pli->do_vit  = FALSE; 
+-  if(esl_opt_GetBoolean(go, "--noF3"))     pli->do_fwd  = FALSE; 
+-  if(esl_opt_GetBoolean(go, "--noF4"))     pli->do_gfwd = FALSE; 
+-  if(esl_opt_GetBoolean(go, "--noF6"))     pli->do_fcyk = FALSE; 
++  if(go && esl_opt_GetBoolean(go, "--noF1"))     pli->do_msv  = FALSE; 
++  if(go && esl_opt_GetBoolean(go, "--noF2"))     pli->do_vit  = FALSE; 
++  if(go && esl_opt_GetBoolean(go, "--noF3"))     pli->do_fwd  = FALSE; 
++  if(go && esl_opt_GetBoolean(go, "--noF4"))     pli->do_gfwd = FALSE; 
++  if(go && esl_opt_GetBoolean(go, "--noF6"))     pli->do_fcyk = FALSE; 
+ 
+   if((! pli->do_max) && (! pli->do_nohmm) && (! pli->do_mid)) { 
+-    if(esl_opt_GetBoolean(go, "--doF1b"))    pli->do_msvbias    = TRUE;
++    if(go && esl_opt_GetBoolean(go, "--doF1b"))    pli->do_msvbias    = TRUE;
+   }
+-  if(esl_opt_GetBoolean(go, "--noF2b"))    pli->do_vitbias  = FALSE;
+-  if(esl_opt_GetBoolean(go, "--noF3b"))    pli->do_fwdbias  = FALSE;
+-  if(esl_opt_GetBoolean(go, "--noF4b"))    pli->do_gfwdbias = FALSE;
+-  if(esl_opt_GetBoolean(go, "--doF5b"))    pli->do_edefbias = TRUE;
++  if(go && esl_opt_GetBoolean(go, "--noF2b"))    pli->do_vitbias  = FALSE;
++  if(go && esl_opt_GetBoolean(go, "--noF3b"))    pli->do_fwdbias  = FALSE;
++  if(go && esl_opt_GetBoolean(go, "--noF4b"))    pli->do_gfwdbias = FALSE;
++  if(go && esl_opt_GetBoolean(go, "--doF5b"))    pli->do_edefbias = TRUE;
+ 
+   /* set HMM only thresholds and filter stage on/off parameters, these
+    * will only be relevant in HMM only mode (for all models if
+@@ -610,45 +610,45 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+    *
+    * First set defaults, then change them if nec.
+    */
+-  pli->do_hmmonly_always = (esl_opt_GetBoolean(go, "--hmmonly"))   ? TRUE : FALSE;
+-  pli->do_hmmonly_never  = (esl_opt_GetBoolean(go, "--nohmmonly") || 
++  pli->do_hmmonly_always = (go && esl_opt_GetBoolean(go, "--hmmonly"))   ? TRUE : FALSE;
++  pli->do_hmmonly_never  = (go && (esl_opt_GetBoolean(go, "--nohmmonly") || 
+ 			    esl_opt_GetBoolean(go, "--max")       || 
+-			    esl_opt_GetBoolean(go, "--nohmm")) ? TRUE : FALSE;
++			    esl_opt_GetBoolean(go, "--nohmm"))) ? TRUE : FALSE;
+   /* pli->do_hmmonly_cur is set in cm_pli_NewModel(), stays FALSE until then */
+   pli->do_max_hmmonly    = FALSE;
+   pli->do_bias_hmmonly   = TRUE;
+   pli->do_null2_hmmonly  = TRUE;
+-  pli->F1_hmmonly = ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF1"));
+-  pli->F2_hmmonly = ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF2"));
+-  pli->F3_hmmonly = ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF3"));
+-  if(esl_opt_GetBoolean(go, "--hmmmax")) { 
++  pli->F1_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF1")) : 1.0;
++  pli->F2_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF2")) : 1.0;
++  pli->F3_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF3")) : 1.0;
++  if(go && esl_opt_GetBoolean(go, "--hmmmax")) { 
+     pli->do_max_hmmonly  = TRUE;
+     pli->do_bias_hmmonly = FALSE;
+     pli->F1_hmmonly = 0.3;
+     pli->F2_hmmonly = 1.0;
+     pli->F3_hmmonly = 1.0;
+   }
+-  if(esl_opt_GetBoolean(go, "--hmmnonull2")) pli->do_null2_hmmonly = FALSE;
+-  if(esl_opt_GetBoolean(go, "--hmmnobias"))  pli->do_bias_hmmonly  = FALSE;
++  if(go && esl_opt_GetBoolean(go, "--hmmnonull2")) pli->do_null2_hmmonly = FALSE;
++  if(go && esl_opt_GetBoolean(go, "--hmmnobias"))  pli->do_bias_hmmonly  = FALSE;
+ 
+   /* Finished setting filter stage on/off parameters and thresholds */
+   /********************************************************************************/
+ 
+   /********************************************************************************/
+   /* Configure options for the CM stages */
+-  pli->do_null2   = esl_opt_GetBoolean(go, "--null2")   ? TRUE  : FALSE;
+-  pli->do_null3   = esl_opt_GetBoolean(go, "--nonull3") ? FALSE : TRUE;
++  pli->do_null2   = (go && esl_opt_GetBoolean(go, "--null2"))   ? TRUE  : FALSE;
++  pli->do_null3   = (go && esl_opt_GetBoolean(go, "--nonull3")) ? FALSE : TRUE;
+ 
+   pli->fcyk_cm_search_opts  = 0;
+   pli->final_cm_search_opts = 0;
+-  pli->fcyk_beta  = esl_opt_GetReal(go, "--fbeta");
+-  pli->fcyk_tau   = esl_opt_GetReal(go, "--ftau");
+-  pli->do_fcykenv = esl_opt_GetBoolean(go, "--nocykenv") ? FALSE : TRUE;
++  pli->fcyk_beta  = go ? esl_opt_GetReal(go, "--fbeta") : 1e-7;
++  pli->fcyk_tau   = go ? esl_opt_GetReal(go, "--ftau") : 1e-4;
++  pli->do_fcykenv = (go && esl_opt_GetBoolean(go, "--nocykenv")) ? FALSE : TRUE;
+   /* important to set F6env after F6 is set to final value */
+-  pli->F6env       = ESL_MIN(1.0, pli->F6 * (float) esl_opt_GetInteger(go, "--cykenvx")); 
++  pli->F6env       = ESL_MIN(1.0, pli->F6 * (float) (go ? esl_opt_GetInteger(go, "--cykenvx") : 10)); 
+ 
+-  pli->final_beta = esl_opt_GetReal(go, "--beta");
+-  pli->final_tau  = esl_opt_GetReal(go, "--tau");
++  pli->final_beta = go ? esl_opt_GetReal(go, "--beta") : 1e-15 ;
++  pli->final_tau  = go ? esl_opt_GetReal(go, "--tau") : 5e-6 ;
+ 
+   /* There are 3 options for banding in CYK filter and final round.
+    * Choice of the 3 varies depending on if pli->do_max, pli->do_nohmm
+@@ -680,35 +680,35 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+     if(pli->do_nohmm) { 
+       /* special case: default behavior for fcyk is to do QDB, HMM banded is not allowed.
+        */
+-      if(esl_opt_GetBoolean(go, "--fnonbanded"))       pli->fcyk_cm_search_opts  |= CM_SEARCH_NONBANDED;
++      if(go && esl_opt_GetBoolean(go, "--fnonbanded"))       pli->fcyk_cm_search_opts  |= CM_SEARCH_NONBANDED;
+       else                                             pli->fcyk_cm_search_opts  |= CM_SEARCH_QDB;
+     }
+     else { 
+-      if     (esl_opt_GetBoolean(go, "--fnonbanded"))  pli->fcyk_cm_search_opts  |= CM_SEARCH_NONBANDED;
+-      else if(esl_opt_GetBoolean(go, "--fqdb"))        pli->fcyk_cm_search_opts  |= CM_SEARCH_QDB;
++      if     (go && esl_opt_GetBoolean(go, "--fnonbanded"))  pli->fcyk_cm_search_opts  |= CM_SEARCH_NONBANDED;
++      else if(go && esl_opt_GetBoolean(go, "--fqdb"))        pli->fcyk_cm_search_opts  |= CM_SEARCH_QDB;
+       else                                             pli->fcyk_cm_search_opts  |= CM_SEARCH_HBANDED;
+     }
+-    if(  esl_opt_GetBoolean(go, "--fsums"))            pli->fcyk_cm_search_opts  |= CM_SEARCH_SUMS;
+-    if(! esl_opt_GetBoolean(go, "--nonull3"))          pli->fcyk_cm_search_opts  |= CM_SEARCH_NULL3;
++    if(   go && esl_opt_GetBoolean(go, "--fsums"))             pli->fcyk_cm_search_opts  |= CM_SEARCH_SUMS;
++    if(! (go && esl_opt_GetBoolean(go, "--nonull3")))          pli->fcyk_cm_search_opts  |= CM_SEARCH_NULL3;
+   }
+ 
+   /* set up final round parameters, always set these (we always do the final CM round) */
+-  if(! esl_opt_GetBoolean(go, "--cyk"))                pli->final_cm_search_opts |= CM_SEARCH_INSIDE;
++  if(! (go && esl_opt_GetBoolean(go, "--cyk")))                pli->final_cm_search_opts |= CM_SEARCH_INSIDE;
+   if     (pli->do_max)   { /* special case, default behavior in final round is to do non-banded, HMM banded is not allowed */
+-    if(esl_opt_GetBoolean(go, "--qdb"))                pli->final_cm_search_opts |= CM_SEARCH_QDB;
++    if(go && esl_opt_GetBoolean(go, "--qdb"))                pli->final_cm_search_opts |= CM_SEARCH_QDB;
+     else                                               pli->final_cm_search_opts |= CM_SEARCH_NONBANDED;
+   }
+   else if(pli->do_nohmm) { /* special case, default behavior in final round is to do QDB, HMM banded is not allowed */
+-    if(esl_opt_GetBoolean(go, "--nonbanded"))          pli->final_cm_search_opts |= CM_SEARCH_NONBANDED;
++    if(go && esl_opt_GetBoolean(go, "--nonbanded"))          pli->final_cm_search_opts |= CM_SEARCH_NONBANDED;
+     else                                               pli->final_cm_search_opts |= CM_SEARCH_QDB;
+   }
+   else { /* normal case, default is HMM banded */
+-    if     (esl_opt_GetBoolean(go, "--nonbanded"))     pli->final_cm_search_opts |= CM_SEARCH_NONBANDED;
+-    else if(esl_opt_GetBoolean(go, "--qdb"))           pli->final_cm_search_opts |= CM_SEARCH_QDB;
++    if     (go && esl_opt_GetBoolean(go, "--nonbanded"))     pli->final_cm_search_opts |= CM_SEARCH_NONBANDED;
++    else if(go && esl_opt_GetBoolean(go, "--qdb"))           pli->final_cm_search_opts |= CM_SEARCH_QDB;
+     else                                               pli->final_cm_search_opts |= CM_SEARCH_HBANDED;
+   }
+-  if(esl_opt_GetBoolean(go, "--sums"))                 pli->final_cm_search_opts |= CM_SEARCH_SUMS;
+-  if(esl_opt_GetBoolean(go, "--nogreedy"))             pli->final_cm_search_opts |= CM_SEARCH_CMNOTGREEDY;
++  if(go && esl_opt_GetBoolean(go, "--sums"))                 pli->final_cm_search_opts |= CM_SEARCH_SUMS;
++  if(go && esl_opt_GetBoolean(go, "--nogreedy"))             pli->final_cm_search_opts |= CM_SEARCH_CMNOTGREEDY;
+ 
+   /* Determine cm->config_opts and cm->align_opts we'll use to
+    * configure CMs after reading within a SCAN pipeline. Search
+@@ -719,11 +719,11 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   pli->cm_config_opts = 0;
+   pli->cm_align_opts = 0;
+   /* should we configure CM/CP9 into local mode? */
+-  if(! esl_opt_GetBoolean(go, "-g")) { 
++  if(! (go && esl_opt_GetBoolean(go, "-g"))) { 
+     pli->cm_config_opts |= CM_CONFIG_LOCAL;
+-    if(! esl_opt_GetBoolean(go, "--cp9gloc")) { 
++    if(! (go && esl_opt_GetBoolean(go, "--cp9gloc"))) { 
+       pli->cm_config_opts |= CM_CONFIG_HMMLOCAL;
+-      if(! esl_opt_GetBoolean(go, "--cp9noel")) { 
++      if(! (go && esl_opt_GetBoolean(go, "--cp9noel"))) { 
+ 	pli->cm_config_opts |= CM_CONFIG_HMMEL; 
+       }
+     }
+@@ -734,15 +734,15 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   /* will we be requiring a CM_SCAN_MX? a CM_TR_SCAN_MX? */
+   if(pli->do_max   ||                    /* max mode, no filters */
+      pli->do_nohmm ||                    /* nohmm mode, no HMM filters */
+-     esl_opt_GetBoolean(go, "--fqdb") || /* user specified to use --fqdb, do it */
+-     esl_opt_GetBoolean(go, "--qdb")) {  /* user specified to use --qdb,  do it */
++     (go && esl_opt_GetBoolean(go, "--fqdb")) || /* user specified to use --fqdb, do it */
++     (go && esl_opt_GetBoolean(go, "--qdb"))) {  /* user specified to use --qdb,  do it */
+     pli->cm_config_opts |= CM_CONFIG_SCANMX;
+     if(pli->do_trunc_ends || pli->do_trunc_any || pli->do_trunc_int || pli->do_trunc_only || pli->do_trunc_5p_ends || pli->do_trunc_3p_ends) pli->cm_config_opts |= CM_CONFIG_TRSCANMX;
+   }
+   /* will we be requiring non-banded alignment matrices? */
+   if(pli->do_max ||                     /* max mode, no filters, hit alignment will be nonbanded */
+      pli->do_nohmm ||                   /* nohmm mode, no HMM filters, hit alignment will be nonbanded */
+-     esl_opt_GetBoolean(go, "--qdb")) { /* using QDBs in final Inside stage, only safe way to go is nonbanded alignment */
++     (go && esl_opt_GetBoolean(go, "--qdb"))) { /* using QDBs in final Inside stage, only safe way to go is nonbanded alignment */
+     pli->cm_align_opts |= CM_ALIGN_SMALL;
+     pli->cm_align_opts |= CM_ALIGN_CYK;
+     if(pli->do_max) pli->cm_align_opts |= CM_ALIGN_NONBANDED;
+@@ -758,14 +758,14 @@ cm_pipeline_Create(ESL_GETOPTS *go, ESL_ALPHABET *abc, int clen_hint, int L_hint
+   else { 
+     pli->cm_align_opts |= CM_ALIGN_HBANDED;
+     pli->cm_align_opts |= CM_ALIGN_POST; 
+-    if(esl_opt_GetBoolean(go, "--acyk")) pli->cm_align_opts |= CM_ALIGN_CYK;
++    if(go && esl_opt_GetBoolean(go, "--acyk")) pli->cm_align_opts |= CM_ALIGN_CYK;
+     else                                 pli->cm_align_opts |= CM_ALIGN_OPTACC;
+   }
+ 
+   /* Determine statistics modes for CM stages */
+-  pli->do_glocal_cm_always    = (esl_opt_GetBoolean(go, "-g")) ? TRUE : FALSE;
++  pli->do_glocal_cm_always    = (go && esl_opt_GetBoolean(go, "-g")) ? TRUE : FALSE;
+   pli->do_glocal_cm_cur       = pli->do_glocal_cm_always       ? TRUE : FALSE;
+-  pli->do_glocal_cm_sometimes = (esl_opt_IsOn(go, "--glist"))  ? TRUE : FALSE;
++  pli->do_glocal_cm_sometimes = (go && esl_opt_IsOn(go, "--glist"))  ? TRUE : FALSE;
+ 
+   pli->fcyk_cm_exp_mode       = pli->do_glocal_cm_always ? EXP_CM_GC : EXP_CM_LC;
+   if(pli->final_cm_search_opts & CM_SEARCH_INSIDE) { 
