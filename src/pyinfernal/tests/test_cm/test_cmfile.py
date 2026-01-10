@@ -72,6 +72,12 @@ class _TestCMFilePath:
             self.assertEqual(f.name, str(path))
     
 
+class _TestISS33(_TestCMFile):
+    ID = "iss33"
+    NAMES = [
+        b"LSU_rRNA_bacteria",
+    ]
+
 
 class _TestRF5c(_TestCMFile):
     ID = "5.c"
@@ -92,4 +98,12 @@ class TestRF5cFileobj(_TestCMFileFileobj, _TestRF5c, unittest.TestCase):
 
 @unittest.skipUnless(resource_files, "importlib.resources.files not available")
 class TestRF5cPath(_TestCMFilePath, _TestRF5c, unittest.TestCase):
+    pass
+
+@unittest.skipUnless(resource_files, "importlib.resources.files not available")
+class TestISS33Fileobj(_TestCMFileFileobj, _TestISS33, unittest.TestCase):
+    pass
+
+@unittest.skipUnless(resource_files, "importlib.resources.files not available")
+class TestISS33Path(_TestCMFilePath, _TestISS33, unittest.TestCase):
     pass
