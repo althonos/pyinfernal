@@ -7,7 +7,7 @@ execute_process(
         PYHMMER_LIBS_DIR
 )
 
-message(STATUS "PYHMMER_LIBS_DIR=${PYHMMER_LIBS_DIR}")
+message(STATUS "Found PyHMMER: ${PYHMMER_LIBS_DIR}")
 
 set(PyHMMER_FOUND true)
 cmake_path(APPEND PYHMMER_LIBS_DIR "include" "libeasel" OUTPUT_VARIABLE _PYHMMER_EASEL_INCLUDE)
