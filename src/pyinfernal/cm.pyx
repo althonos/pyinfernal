@@ -217,7 +217,7 @@ cdef class CMFile:
         # store options
         cmfp.f            = fopen_obj(fh_, "r")
         cmfp.do_stdin     = False
-        cmfp.do_gzip      = False
+        cmfp.do_gzip      = True
         cmfp.newly_opened = True
         cmfp.is_pressed   = False
         cmfp.is_binary    = False
@@ -249,10 +249,11 @@ cdef class CMFile:
         cmfp.hfp.fname        = NULL
         cmfp.hfp.errbuf[0]    = '\0'
 
-        # NOTE(@althonos): We open the file separately to avoid a double free
-        #                  when cmfp.hfp is free with p7_hmmfile_Close in 
-        #                  cm_file_Close.
-        cmfp.hfp.f            = fopen_obj(fh_, "r")
+        # NOTE(@althonos): Because we set `do_gzip=True`, the parser will now
+        #                  expect a lot of things to be available only through
+        #                  streams, and won't attempt to e.g. `seek` the 
+        #                  internal file object (or at least not as often).
+        cmfp.hfp.f            = cmfp.f
 
         # extract the filename if the file handle has a `name` attribute
         if getattr(fh, "name", None) is not None:
@@ -262,7 +263,7 @@ cdef class CMFile:
                 libinfernal.cm_file.cm_file_Close(cmfp)
                 raise AllocationError("char", sizeof(char), strlen(filename))
             cmfp.hfp.fname = strdup(filename)
-            if cmfp.hfp.fname:
+            if cmfp.hfp.fname == NULL:
                 libinfernal.cm_file.cm_file_Close(cmfp)
                 raise AllocationError("char", sizeof(char), strlen(filename))
 
