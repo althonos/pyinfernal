@@ -1,7 +1,8 @@
 # 🐍 PyInfernal [![Stars](https://img.shields.io/github/stars/althonos/pyinfernal.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/pyinfernal/stargazers)
 
-*[Cython](https://cython.org/) bindings and Python interface to [HMMER3](http://hmmer.org/).*
+*[Cython](https://cython.org/) bindings and Python interface to [Infernal](http://eddylab.org/infernal).*
 
+<!--
 [![Actions](https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=master&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pyinfernal/actions)
 [![Coverage](https://img.shields.io/codecov/c/gh/althonos/pyinfernal?logo=codecov&style=flat-square&maxAge=3600)](https://codecov.io/gh/althonos/pyinfernal/)
 [![PyPI](https://img.shields.io/pypi/v/pyinfernal.svg?logo=pypi&style=flat-square&maxAge=3600)](https://pypi.org/project/pyinfernal)
@@ -17,10 +18,14 @@
 [![Docs](https://img.shields.io/readthedocs/pyinfernal/latest?style=flat-square&maxAge=600)](https://pyinfernal.readthedocs.io)
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md)
 [![Downloads](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2Fpyinfernal&search=%5B0-9%5D%2B.%5B0-9%5D%2B(k%7CM)&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400)](https://pepy.tech/project/pyinfernal)
-
+-->
 
 ## 🗺️ Overview
-is a biological sequence analysis method that uses profile stochastic context-free grammars called *covariance models* (CMs) to identify RNA structure and sequence similarities. Infernal was developed by [Eric P. Nawrocki](https://scholar.google.com/citations?user=jn84-g0AAAAJ&hl=fr) during his PhD thesis in the [Eddy Laboratory](http://eddylab.org/).
+
+[Infernal](https://eddylab.org/infernal) is a biological sequence analysis method that uses profile stochastic 
+context-free grammars called *covariance models* (CMs) to identify RNA structure and sequence similarities. 
+Infernal was developed by [Eric P. Nawrocki](https://scholar.google.com/citations?user=jn84-g0AAAAJ&hl=fr) 
+during his PhD thesis in the [Eddy Laboratory](http://eddylab.org/).
 
 `pyinfernal` is a Python package, implemented using the [Cython](https://cython.org/)
 language, that provides bindings to Infernal. It directly interacts with the
