@@ -1,0 +1,128 @@
+[build-system]
+requires = ["scikit-build-core", "cython >= 3.0", "pyhmmer ~=0.12.0a1"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyinfernal"
+version = "0.1.0-dev.1"
+description = "Cython bindings and Python interface to Infernal."
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+authors = [
+  { name = "Martin Larralde", email = "martin.larralde@embl.de" },
+]
+keywords = ["bioinformatics", "RNA", "covariance model", "CM", "rfam"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX",
+    "Programming Language :: C",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    # "Typing :: Typed",
+]
+dependencies = [
+    "pyhmmer ~=0.12.0a1",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/althonos/pyinfernal/"
+# "Documentation" = "https://pyinfernal.readthedocs.io/en/stable/"
+# "Bug Tracker" = "https://github.com/althonos/pyinfernal/issues"
+# "Changelog" = "https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md"
+# "Coverage" = "https://codecov.io/gh/althonos/pyinfernal/"
+# "Builds" = "https://github.com/althonos/pyinfernal/actions"
+# "PyPI" = "https://pypi.org/project/pyinfernal"
+# "PiWheels" = "https://piwheels.org/project/pyinfernal/"
+
+[project.optional-dependencies]
+test = ["importlib-resources ; python_version < '3.9'"]
+
+[tool.scikit-build]
+build-dir = "build/{build_type}"
+editable.rebuild = true
+editable.verbose = false
+sdist.exclude = [
+    "build",
+    "benches",
+    "vendor/infernal/documentation",
+    "vendor/infernal/miniapps",
+    "vendor/**/*.ai",
+    "vendor/**/*.pl",
+]
+
+[tool.scikit-build.cmake.define]
+PYINFERNAL_INSTALL_LIBS = { env = "PYINFERNAL_INSTALL_LIBS", default = true }
+BUILD_SHARED_LIBS = { env = "BUILD_SHARED_LIBS", default = true }
+
+[[tool.scikit-build.overrides]]
+if.state = "editable"
+cmake.build-type = "Debug"
+
+[[tool.scikit-build.overrides]]
+if.env.READTHEDOCS = "True"
+cmake.build-type = "Debug"
+
+[[tool.scikit-build.overrides]]
+if.env.SCCACHE = true
+cmake.define.CMAKE_C_COMPILER_LAUNCHER = "sccache"
+cmake.define.CMAKE_CXX_COMPILER_LAUNCHER = "sccache"
+
+[[tool.scikit-build.overrides]]
+if.env.MOLD = true
+cmake.define.CMAKE_LINKER_TYPE = "mold"
+
+[tool.coverage.run]
+plugins = ["Cython.Coverage"]
+
+[tool.cibuildwheel]
+build-verbosity = 1
+test-command = "python -m unittest pyinfernal.tests -v"
+test-extras = ["test"]
+
+[tool.coverage.report]
+include = ["src/pyinfernal/*"]
+omit = ["src/pyinfernal/tests/*"]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if typing.TYPE_CHECKING:",
+    "@abc.abstractmethod",
+    "@abc.abstractproperty",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "raise UnexpectedError",
+    "raise AllocationError",
+]
+
+[tool.mypy]
+disallow_any_decorated = true
+disallow_any_generics = true
+disallow_any_unimported = false
+disallow_subclassing_any = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = true
+exclude = ["tests/.*\\.py"]
+
+["tool.mypy-pyinfernal.tests.*"]
+ignore_errors = true
+
+[tool.isort]
+known_standard_library = ["cython", "libc", "posix"]
+known_third_party = ["libeasel", "libhmmer", "libinfernal"]
