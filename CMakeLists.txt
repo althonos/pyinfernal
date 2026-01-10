@@ -1,0 +1,61 @@
+cmake_minimum_required(VERSION 3.20)
+project(${SKBUILD_PROJECT_NAME} VERSION ${SKBUILD_PROJECT_VERSION} LANGUAGES C)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/scripts/cmake")
+
+# --- Detect SIMD --------------------------------------------------------------
+
+include(FindNEON)
+include(FindSSE2)
+include(FindSSE4)
+include(FindVMX)
+
+if(HAVE_SSE4)
+    set(eslENABLE_SSE true)
+    set(eslENABLE_SSE4 true)
+    set(HMMER_IMPL "SSE")
+    set(INFERNAL_IMPL "SSE")
+    string(REPLACE " " ";" IMPL_FLAGS "${SSE4_C_FLAGS}")
+elseif(HAVE_SSE2)
+    set(eslENABLE_SSE true)
+    set(HMMER_IMPL "SSE")
+    set(INFERNAL_IMPL "SSE")
+    string(REPLACE " " ";" IMPL_FLAGS "${SSE2_C_FLAGS}")
+elseif(HAVE_NEON)
+    set(eslENABLE_NEON true)
+    set(HMMER_IMPL "NEON")
+    set(INFERNAL_IMPL "NEON")
+    string(REPLACE " " ";" IMPL_FLAGS "${NEON_C_FLAGS}")
+elseif(HAVE_VMX)
+    set(eslENABLE_VMX true)
+    set(HMMER_IMPL "VMX")
+    set(INFERNAL_IMPL "VMX")
+    string(REPLACE " " ";" IMPL_FLAGS "${VMX_C_FLAGS}")
+else()
+    message(FATAL_ERROR "Unsupported platform, none of SSE2, NEON or AltiVec available.")
+endif()
+
+foreach(flag IN LISTS IMPL_FLAGS)
+    add_compile_options(${flag})
+endforeach()
+
+# --- Find PyHMMER -------------------------------------------------------------
+
+find_package(PyHMMER REQUIRED)
+
+# --- Setup Python folders -----------------------------------------------------
+
+set_property(GLOBAL PROPERTY PYTHON_EXTENSIONS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(CYTHON_HEADERS_DIR ${CMAKE_CURRENT_LIST_DIR}/include)
+
+# Install shared library objects to `pyinfernal.libs` (like auditwheel repair)
+if(PYINFERNAL_INSTALL_LIBS)
+    set(PYINFERNAL_INSTALL_LIBS_DIR "${CMAKE_PROJECT_NAME}.libs")
+    message(STATUS "Installing shared libraries to ${PYINFERNAL_INSTALL_LIBS}")
+endif()
+
+# --- Compile source code ------------------------------------------------------
+
+add_subdirectory("src")
