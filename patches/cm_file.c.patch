@@ -1,5 +1,5 @@
 diff --git a/src/cm_file.c b/src/cm_file.c
-index a6d4376c..2d9c2552 100644
+index a6d4376c..a2bdd03b 100644
 --- a/src/cm_file.c
 +++ b/src/cm_file.c
 @@ -55,10 +55,6 @@ static uint32_t  v1a_fmagic = 0xb1e1e6f3; /* 1/a binary MSV/SSV file: "1afs" = 0
@@ -13,7 +13,71 @@ index a6d4376c..2d9c2552 100644
  static int   write_bin_string(FILE *fp, char *s);
  static int   read_bin_string (FILE *fp, char **ret_s);
  
-@@ -1535,7 +1531,7 @@ cm_p7_oprofile_ReadBlockMSV(CM_FILE *cmfp, int64_t idx0, ESL_ALPHABET **byp_abc,
+@@ -68,15 +64,17 @@ static int is_integer(char *s);
+ static int is_real(char *s);
+ 
+ /* from p7_hmmfile.c, for reading p7 filters */
+-static uint32_t  v3a_magic = 0xe8ededb6; /* 3/a binary: "hmm6" + 0x80808080 */
+-static uint32_t  v3b_magic = 0xe8ededb7; /* 3/b binary: "hmm7" + 0x80808080 */
+-static uint32_t  v3c_magic = 0xe8ededb8; /* 3/c binary: "hmm8" + 0x80808080 */
+-static uint32_t  v3d_magic = 0xe8ededb9; /* 3/d binary: "hmm9" + 0x80808080 */
+-static uint32_t  v3e_magic = 0xe8ededb0; /* 3/e binary: "hmm0" + 0x80808080 */
+-static uint32_t  v3f_magic = 0xe8ededba; /* 3/f binary: "hmma" + 0x80808080 */
+ 
+-static int read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
+-static int read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
++/*uint32_t  v3a_magic = 0xe8ededb6; /* 3/a binary: "hmm6" + 0x80808080 */
++/*uint32_t  v3b_magic = 0xe8ededb7; /* 3/b binary: "hmm7" + 0x80808080 */
++/*uint32_t  v3c_magic = 0xe8ededb8; /* 3/c binary: "hmm8" + 0x80808080 */
++/*uint32_t  v3d_magic = 0xe8ededb9; /* 3/d binary: "hmm9" + 0x80808080 */
++/*uint32_t  v3e_magic = 0xe8ededb0; /* 3/e binary: "hmm0" + 0x80808080 */
++/*uint32_t  v3f_magic = 0xe8ededba; /* 3/f binary: "hmma" + 0x80808080 */
++
++
++static int cm_read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
++static int cm_read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm);
+ 
+ /*****************************************************************
+  * 1. The CM_FILE object for reading CMs.
+@@ -1146,12 +1144,12 @@ cm_p7_hmmfile_Read(CM_FILE *cmfp, ESL_ALPHABET *abc, off_t offset, P7_HMM **ret_
+   if(cmfp->hfp->parser == NULL) { 
+     if(cmfp->is_binary) { /* CM file is binary, HMM file must be too */
+       if (! fread((char *) &(magic), sizeof(uint32_t), 1, cmfp->hfp->f))  ESL_XFAIL(eslEFORMAT, cmfp->errbuf, "Failed to read magic number at start of p7 additional filters");
+-      if      (magic == v3a_magic) { cmfp->hfp->format = p7_HMMFILE_3a; cmfp->hfp->parser = read_bin30hmm; }
+-      else if (magic == v3b_magic) { cmfp->hfp->format = p7_HMMFILE_3b; cmfp->hfp->parser = read_bin30hmm; }
+-      else if (magic == v3c_magic) { cmfp->hfp->format = p7_HMMFILE_3c; cmfp->hfp->parser = read_bin30hmm; }
+-      else if (magic == v3d_magic) { cmfp->hfp->format = p7_HMMFILE_3d; cmfp->hfp->parser = read_bin30hmm; }
+-      else if (magic == v3e_magic) { cmfp->hfp->format = p7_HMMFILE_3e; cmfp->hfp->parser = read_bin30hmm; }
+-      else if (magic == v3f_magic) { cmfp->hfp->format = p7_HMMFILE_3f; cmfp->hfp->parser = read_bin30hmm; }
++      if      (magic == v3a_magic) { cmfp->hfp->format = p7_HMMFILE_3a; cmfp->hfp->parser = cm_read_bin30hmm; }
++      else if (magic == v3b_magic) { cmfp->hfp->format = p7_HMMFILE_3b; cmfp->hfp->parser = cm_read_bin30hmm; }
++      else if (magic == v3c_magic) { cmfp->hfp->format = p7_HMMFILE_3c; cmfp->hfp->parser = cm_read_bin30hmm; }
++      else if (magic == v3d_magic) { cmfp->hfp->format = p7_HMMFILE_3d; cmfp->hfp->parser = cm_read_bin30hmm; }
++      else if (magic == v3e_magic) { cmfp->hfp->format = p7_HMMFILE_3e; cmfp->hfp->parser = cm_read_bin30hmm; }
++      else if (magic == v3f_magic) { cmfp->hfp->format = p7_HMMFILE_3f; cmfp->hfp->parser = cm_read_bin30hmm; }
+       else    ESL_XFAIL(eslEFORMAT, cmfp->errbuf, "Unknown magic number for p7 HMM filter");
+     }
+     else { /* CM file is ascii, HMM file must be too */
+@@ -1160,12 +1158,12 @@ cm_p7_hmmfile_Read(CM_FILE *cmfp, ESL_ALPHABET *abc, off_t offset, P7_HMM **ret_
+       if ((status = esl_fileparser_SetCommentChar(cmfp->hfp->efp, '#'))        != eslOK)  goto ERROR;
+       if ((status = esl_fileparser_GetToken(cmfp->hfp->efp, &tok1, NULL))      != eslOK)  goto ERROR;
+ 
+-      if      (strcmp("HMMER3/f", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3f; cmfp->hfp->parser = read_asc30hmm; }
+-      else if (strcmp("HMMER3/e", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3e; cmfp->hfp->parser = read_asc30hmm; }
+-      else if (strcmp("HMMER3/d", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3d; cmfp->hfp->parser = read_asc30hmm; }
+-      else if (strcmp("HMMER3/c", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3c; cmfp->hfp->parser = read_asc30hmm; }
+-      else if (strcmp("HMMER3/b", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3b; cmfp->hfp->parser = read_asc30hmm; }
+-      else if (strcmp("HMMER3/a", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3a; cmfp->hfp->parser = read_asc30hmm; }
++      if      (strcmp("HMMER3/f", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3f; cmfp->hfp->parser = cm_read_asc30hmm; }
++      else if (strcmp("HMMER3/e", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3e; cmfp->hfp->parser = cm_read_asc30hmm; }
++      else if (strcmp("HMMER3/d", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3d; cmfp->hfp->parser = cm_read_asc30hmm; }
++      else if (strcmp("HMMER3/c", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3c; cmfp->hfp->parser = cm_read_asc30hmm; }
++      else if (strcmp("HMMER3/b", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3b; cmfp->hfp->parser = cm_read_asc30hmm; }
++      else if (strcmp("HMMER3/a", tok1) == 0) { cmfp->hfp->format = p7_HMMFILE_3a; cmfp->hfp->parser = cm_read_asc30hmm; }
+       else    ESL_XFAIL(eslEFORMAT, cmfp->errbuf, "Unknown format for p7 HMM filter");
+     }
+   }
+@@ -1535,7 +1533,7 @@ cm_p7_oprofile_ReadBlockMSV(CM_FILE *cmfp, int64_t idx0, ESL_ALPHABET **byp_abc,
   *             is left in its original state as passed by the caller, and <*ret_hmm> is
   *             returned <NULL>.
   */
@@ -22,7 +86,7 @@ index a6d4376c..2d9c2552 100644
  read_asc_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
  {
    int           status;
-@@ -2120,7 +2116,7 @@ read_asc_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
+@@ -2120,7 +2118,7 @@ read_asc_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
  }
  
  
@@ -31,7 +95,7 @@ index a6d4376c..2d9c2552 100644
  read_bin_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
  {
    ESL_ALPHABET *abc = NULL;
-@@ -2308,7 +2304,7 @@ read_bin_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
+@@ -2308,7 +2306,7 @@ read_bin_1p1_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
   * in the prototype so that read_asc_1p0_cm is consistent with
   * other parser prototypes.
   */
@@ -40,3 +104,21 @@ index a6d4376c..2d9c2552 100644
  read_asc_1p0_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_cm)
  {
    int     status;
+@@ -2804,7 +2802,7 @@ read_asc_1p0_cm(CM_FILE *cmfp, int read_fp7, ESL_ALPHABET **ret_abc, CM_t **opt_
+  *             returned <NULL>.
+  */
+ static int
+-read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
++cm_read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
+ {
+   ESL_ALPHABET *abc  = NULL;
+   P7_HMM       *hmm  = NULL;
+@@ -3157,7 +3155,7 @@ read_asc30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
+ 
+ 
+ static int
+-read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
++cm_read_bin30hmm(P7_HMMFILE *hfp, ESL_ALPHABET **ret_abc, P7_HMM **opt_hmm)
+ {
+   ESL_ALPHABET *abc = NULL;
+   P7_HMM       *hmm = NULL;
