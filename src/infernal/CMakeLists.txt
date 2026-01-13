@@ -110,6 +110,7 @@ foreach(_file IN ITEMS ${INFERNAL_SOURCES})
                         --output ${CMAKE_CURRENT_BINARY_DIR}/${_file}
                 DEPENDS
                     ${PROJECT_SOURCE_DIR}/patches/${_file}.patch
+                DEPENDS_EXPLICIT_ONLY
             )
         else()
             add_custom_command(
@@ -125,16 +126,20 @@ foreach(_file IN ITEMS ${INFERNAL_SOURCES})
                 DEPENDS
                     ${INFERNAL_SOURCE_DIR}/${_file}
                     ${PROJECT_SOURCE_DIR}/patches/${_file}.patch
+                DEPENDS_EXPLICIT_ONLY
             )
         endif()
     else()
         add_custom_command(
             OUTPUT
                 ${_file}
+            COMMENT
+                "Copying ${_file}"
             COMMAND
                 cmake -E copy ${INFERNAL_SOURCE_DIR}/${_file} ${CMAKE_CURRENT_BINARY_DIR}/${_file}
             DEPENDS
                 ${INFERNAL_SOURCE_DIR}/${_file}
+            DEPENDS_EXPLICIT_ONLY
         )
     endif()
     set(INFERNAL_PATCHED_SOURCES ${INFERNAL_PATCHED_SOURCES} ${CMAKE_CURRENT_BINARY_DIR}/${_file})
@@ -151,11 +156,12 @@ target_link_libraries(libinfernal PUBLIC ${PyHMMER_LIBRARIES})
 
 if(DEFINED PYINFERNAL_INSTALL_LIBS_DIR)
     install(TARGETS libinfernal DESTINATION "${SKBUILD_PLATLIB_DIR}/${PYINFERNAL_INSTALL_LIBS_DIR}")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        set_target_properties(libinfernal PROPERTIES INSTALL_RPATH "@loader_path/")
+    else()
+        set_target_properties(libinfernal PROPERTIES INSTALL_RPATH "\$ORIGIN/")
+    endif()
     cmake_path(APPEND SKBUILD_PLATLIB_DIR "${PYINFERNAL_INSTALL_LIBS_DIR}" "include" "libinfernal" OUTPUT_VARIABLE INCLUDE_DEST_FOLDER)
-
-    # install(FILES "${CMAKE_CURRENT_BINARY_DIR}/config.h" "${INFERNAL_SOURCE_DIR}/infernal.h" DESTINATION "${INCLUDE_DEST_FOLDER}")
-    # install(FILES "${IMPL_SLUG}/${IMPL_SLUG}.h" DESTINATION "${INCLUDE_DEST_FOLDER}/${IMPL_SLUG}")
-
     foreach(_file IN ITEMS ${INFERNAL_PATCHED_SOURCES})
          cmake_path(GET _file EXTENSION LAST_ONLY _ext)
          if(_ext STREQUAL ".h")
@@ -164,6 +170,4 @@ if(DEFINED PYINFERNAL_INSTALL_LIBS_DIR)
             install(FILES "${_file}" DESTINATION "${INCLUDE_DEST_FOLDER}/${_dest}")
          endif()
     endforeach()
-
-    set_target_properties(libinfernal PROPERTIES INSTALL_RPATH "\$ORIGIN/.")
 endif()
