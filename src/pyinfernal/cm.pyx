@@ -1,7 +1,13 @@
+from cpython.unicode cimport (
+    PyUnicode_FromString,
+    PyUnicode_DecodeASCII,
+    PyUnicode_AsUTF8AndSize,
+)
+
 from libc cimport errno
 from libc.stdio cimport FILE, fopen, fclose
 from libc.stdint cimport uint32_t, uint64_t, int64_t
-from libc.stdlib cimport malloc, calloc, free
+from libc.stdlib cimport malloc, calloc, realloc, free
 from libc.string cimport memset, memcpy, memmove, strdup, strlen
 
 cimport libeasel
@@ -13,6 +19,7 @@ cimport libhmmer.p7_hmm
 cimport libhmmer.p7_scoredata
 cimport libhmmer.modelconfig
 cimport libinfernal.cm
+cimport libinfernal.cm_alidisplay
 cimport libinfernal.cm_mx
 cimport libinfernal.cm_file
 cimport libinfernal.cm_tophits
@@ -35,6 +42,7 @@ from libinfernal.cm_tophits cimport CM_TOPHITS, CM_HIT
 from libinfernal.cm cimport CM_t
 from libinfernal.cmsearch cimport WORKER_INFO
 from libinfernal.logsum cimport FLogsumInit, init_ilogsum
+from libinfernal.cm_alidisplay cimport CM_ALIDISPLAY
 
 if HMMER_IMPL == "VMX":
     from libhmmer.impl_vmx.p7_omx cimport P7_OM_BLOCK
@@ -155,14 +163,16 @@ cdef class CM:
     @property
     def name(self):
         assert self._cm != NULL
-        return <bytes> self._cm.name
+        return PyUnicode_FromString(self._cm.name)
 
     @property
     def accession(self):
-        """`bytes` or `None`: The accession of the CM, if any.
+        """`str` or `None`: The accession of the CM, if any.
         """
         assert self._cm != NULL
-        return None if self._cm.acc == NULL else <bytes> self._cm.acc
+        if self._cm.acc == NULL:
+            return None
+        return PyUnicode_FromString(self._cm.acc)
 
 
 cdef class CMFile:
@@ -1031,33 +1041,277 @@ cdef class Pipeline:
         return top_hits
 
 
+cdef class Alignment:
+    cdef readonly Hit            hit
+    cdef          CM_ALIDISPLAY* _ad
+
+    # --- Magic methods ------------------------------------------------------
+
+    def __cinit__(self, Hit hit):
+        self.hit = hit
+        self._ad = hit._hit.ad
+    
+    def __str__(self):
+        assert self._ad != NULL
+
+        cdef int    status
+        cdef object buffer = io.BytesIO()
+        cdef FILE*  fp     = fopen_obj(buffer, "w")
+
+        try:
+            status = libinfernal.cm_alidisplay.cm_alidisplay_Print(
+                fp,
+                self._ad,
+                0,
+                -1,
+                False,
+            )
+            if status == libeasel.eslEWRITE:
+                raise OSError("Failed to write alignment")
+            elif status != libeasel.eslOK:
+                raise UnexpectedError(status, "cm_alidisplay_Print")
+        finally:
+            fclose(fp)
+
+        return buffer.getvalue().decode("ascii")
+
+    def __sizeof__(self):
+        assert self._ad != NULL
+        return sizeof(self) + libinfernal.cm_alidisplay.cm_alidisplay_Sizeof(self._ad)
+
+
+    # --- Properties ---------------------------------------------------------
+
+    @property
+    def hmm_from(self):
+        """`int`: The start coordinate of the alignment in the query CM.
+        """
+        assert self._ad != NULL
+        return self._ad.cfrom_emit
+
+    @property
+    def hmm_to(self):
+        """`int`: The end coordinate of the alignment in the query CM.
+        """
+        assert self._ad != NULL
+        return self._ad.cto_emit
+
+    @property
+    def cm_name(self):
+        """`str`: The name of the query CM.
+        """
+        assert self._ad != NULL
+        assert self._ad.cmname != NULL
+        return PyUnicode_FromString(self._ad.cmname)
+
+    @property
+    def cm_accession(self):
+        """`str`: The accession of the query, or its name if it has none.
+        """
+        assert self._ad != NULL
+        assert self._ad.cmacc != NULL
+        return PyUnicode_FromString(self._ad.cmacc)
+
+    @property
+    def cm_description(self):
+        """`str`: The description of the query, or its name if it has none.
+        """
+        assert self._ad != NULL
+        assert self._ad.cmdesc != NULL
+        return PyUnicode_FromString(self._ad.cmdesc)
+
+    @property
+    def cm_sequence(self):
+        """`str`: The sequence of the query CM in the alignment.
+        """
+        assert self._ad != NULL
+        return PyUnicode_DecodeASCII(self._ad.model, self._ad.N, NULL)
+
+    @property
+    def posterior_probabilities(self):
+        """`str`: Posterior probability annotation of the alignment.
+
+        .. versionadded:: 0.10.5
+
+        """
+        assert self._ad != NULL
+        return PyUnicode_DecodeASCII(self._ad.ppline, self._ad.N, NULL)
+
+
+    @property
+    def target_from(self):
+        """`int`: The start coordinate of the alignment in the target sequence.
+        """
+        assert self._ad != NULL
+        return self._ad.sqfrom
+
+    @property
+    def target_name(self):
+        """`str`: The name of the target sequence.
+
+        .. versionchanged:: 0.12.0
+            Property is now a `str` instead of `bytes`.
+
+        """
+        assert self._ad != NULL
+        assert self._ad.sqname != NULL
+        return PyUnicode_FromString(self._ad.sqname)
+
+    @property
+    def target_sequence(self):
+        """`str`: The sequence of the target sequence in the alignment.
+        """
+        assert self._ad != NULL
+        return PyUnicode_DecodeASCII(self._ad.aseq, self._ad.N, NULL)
+
+    @property
+    def target_to(self):
+        """`int`: The end coordinate of the alignment in the target sequence.
+        """
+        assert self._ad != NULL
+        return self._ad.sqto
+
+    @property
+    def identity_sequence(self):
+        """`str`: The identity sequence between the query and the target.
+        """
+        assert self._ad != NULL
+        return PyUnicode_DecodeASCII(self._ad.mline, self._ad.N, NULL)
+
+
 cdef class Hit:
     # a reference to the TopHits that owns the wrapped CM_HIT, kept so that
     # the internal data is never deallocated before the Python class.
-    cdef readonly TopHits hits
-    cdef CM_HIT* _hit
+    cdef readonly TopHits   hits
+    cdef readonly Alignment alignment
+    cdef          CM_HIT*   _hit
 
     def __cinit__(self, TopHits hits, size_t index):
         assert hits._th != NULL
         assert index < hits._th.N
         self.hits = hits
         self._hit = hits._th.hit[index]
+        self.alignment = Alignment(self)
 
     @property
     def name(self):
-        """`bytes`: The name of the database hit.
+        """`str`: The name of the database hit.
         """
         assert self._hit != NULL
         assert self._hit.name != NULL
-        return <bytes> self._hit.name
+        return PyUnicode_FromString(self._hit.name)
 
     @name.setter
-    def name(self, bytes name not None):
+    def name(self, str name not None):
         assert self._hit != NULL
-        free(self._hit.name)
-        self._hit.name = strdup(<const char*> name)
+
+        cdef const char* data   = NULL
+        cdef ssize_t     length = -1
+
+        data = PyUnicode_AsUTF8AndSize(name, &length)
+        self._hit.name = <char*> realloc(self._hit.name, max(1, sizeof(char) * length))
         if self._hit.name == NULL:
-            raise AllocationError("char", sizeof(char), strlen(name))
+            raise AllocationError("char", sizeof(char), length)
+        with nogil:
+            memcpy(self._hit.name, data, sizeof(char) * (length + 1))
+
+    @property
+    def accession(self):
+        """`str` or `None`: The accession of the database hit, if any.
+
+        .. versionchanged:: 0.12.0
+            Property is now a `str` instead of `bytes`.
+
+        """
+        assert self._hit != NULL
+        if self._hit.acc == NULL:
+            return None
+        return PyUnicode_FromString(self._hit.acc)
+
+    @accession.setter
+    def accession(self, str accession):
+        assert self._hit != NULL
+
+        cdef const char* data   = NULL
+        cdef ssize_t     length = -1
+
+        if accession is None:
+            free(self._hit.acc)
+            self._hit.acc = NULL
+        else:
+            data = PyUnicode_AsUTF8AndSize(accession, &length)
+            self._hit.acc = <char*> realloc(self._hit.acc, max(1, sizeof(char) * length))
+            if self._hit.name == NULL:
+                raise AllocationError("char", sizeof(char), length)
+            with nogil:
+                memcpy(self._hit.acc, data, sizeof(char) * (length + 1))
+
+    @property
+    def description(self):
+        """`str` or `None`: The description of the database hit, if any.
+
+        .. versionchanged:: 0.12.0
+            Property is now a `str` instead of `bytes`.
+
+        """
+        assert self._hit != NULL
+        if self._hit.desc == NULL:
+            return None
+        return PyUnicode_FromString(self._hit.desc)
+
+    @description.setter
+    def description(self, str description):
+        assert self._hit != NULL
+
+        cdef const char* data   = NULL
+        cdef ssize_t     length = -1
+
+        if description is None:
+            free(self._hit.desc)
+            self._hit.desc = NULL
+        else:
+            data = PyUnicode_AsUTF8AndSize(description, &length)
+            self._hit.desc = <char*> realloc(self._hit.desc, max(1, sizeof(char) * length))
+            if self._hit.name == NULL:
+                raise AllocationError("char", sizeof(char), length)
+            with nogil:
+                memcpy(self._hit.desc, data, sizeof(char) * (length + 1))
+
+    @property
+    def score(self):
+        """`float`: Bit score of the hit after correction.
+        """
+        assert self._hit != NULL
+        return self._hit.score
+
+    @property
+    def bias(self):
+        """`float`: The *null2*/*null3* contribution to the uncorrected score.
+        """
+        assert self._hit != NULL
+        return self._hit.bias
+
+    @property
+    def pvalue(self):
+        """`float`: The p-value of the bitscore.
+        """
+        assert self._hit != NULL
+        return self._hit.pvalue
+
+    @property
+    def included(self):
+        """`bool`: Whether this hit is marked as *included*.
+        """
+        assert self._hit != NULL
+        return self._hit.flags & libinfernal.cm_tophits.CM_HIT_IS_INCLUDED != 0
+
+    @property
+    def reported(self):
+        """`bool`: Whether this hit is marked as *reported*.
+        """
+        assert self._hit != NULL
+        return self._hit.flags & libinfernal.cm_tophits.CM_HIT_IS_REPORTED != 0
+
 
 
 cdef class TopHits:
@@ -1136,13 +1390,20 @@ cdef class TopHits:
         cdef FILE* file
         cdef str   fname
         cdef int   status
-        cdef bytes qname  = b"-"
-        cdef bytes qacc   = b"-"
+        cdef str         sname  = None
+        cdef str         sacc   = None
+        cdef const char* qname  = NULL
+        cdef const char* qacc   = NULL
 
-        if self._query is not None:
+        if isinstance(self._query, CM):
+            qname = (<CM> self._query)._cm.name
+            qacc  = (<CM> self._query)._cm.acc
+        elif self._query is not None:
             if self._query.name is not None:
+                sname = self._query.name
                 qname = self._query.name
             if self._query.accession is not None:
+                sacc = self._query.accession
                 qacc = self._query.accession
 
         file = fopen_obj(fh, "w")
@@ -1151,8 +1412,8 @@ cdef class TopHits:
                 fname = "cm_tophits_TabularTargets3"
                 status = libinfernal.cm_tophits.cm_tophits_TabularTargets3(
                     file,
-                    qname,
-                    qacc,
+                    <char*> qname,
+                    <char*> qacc,
                     self._th,
                     &self._pli,
                     header
@@ -1164,6 +1425,8 @@ cdef class TopHits:
                 raise UnexpectedError(status, fname)
         finally:
             fclose(file)
+            del sname
+            del sacc
 
 # --- Module init code -------------------------------------------------------
 
