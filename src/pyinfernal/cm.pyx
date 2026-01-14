@@ -35,6 +35,7 @@ from libeasel.sq cimport ESL_SQ
 from libeasel.random cimport ESL_RANDOMNESS
 from libhmmer.p7_hmm cimport P7_HMM
 from libhmmer.p7_hmmfile cimport P7_HMMFILE
+from libhmmer.p7_scoredata cimport P7_SCOREDATA
 from libhmmer.logsum cimport p7_FLogsumInit
 from libinfernal cimport CM_p7_NEVPARAM
 from libinfernal.cm_file cimport CM_FILE, cm_file_formats_e
@@ -64,14 +65,12 @@ cimport pyhmmer.easel
 cimport pyhmmer.plan7
 from pyhmmer.easel cimport (
     Alphabet,
-    AA,
-    DNA,
-    RNA,
     DigitalSequenceBlock,
     Randomness,
     SequenceFile,
 )
 from pyhmmer.plan7 cimport (
+    Background,
     HMM,
     Profile,
     OptimizedProfile,
@@ -136,12 +135,12 @@ cdef class CM:
         else:
             obj.alphabet = alphabet
 
-        if cm.fp7 is not NULL:
+        if cm.flags & libinfernal.cm.CMH_FP7:
             obj.filter_hmm = HMM.__new__(HMM)
             obj.filter_hmm._hmm = cm.fp7
             obj.filter_hmm.alphabet = obj.alphabet
 
-        if cm.mlp7 is not NULL:
+        if cm.flags & libinfernal.cm.CMH_MLP7:
             obj.ml_hmm = HMM.__new__(HMM)
             obj.ml_hmm._hmm = cm.mlp7
             obj.ml_hmm.alphabet = obj.alphabet
@@ -512,14 +511,22 @@ cdef class Pipeline:
     """
 
     CLEN_HINT = 100  # default model size
+    M_HINT    = 100  # default HMM size
     L_HINT    = 100  # default sequence size
 
     cdef CM_PIPELINE* _pli
     cdef uint32_t     _seed
     cdef int64_t      _Z
 
-    cdef readonly Alphabet   alphabet
-    cdef readonly Randomness randomness
+    cdef readonly Alphabet         alphabet
+    cdef readonly Randomness       randomness
+    cdef readonly Background       background
+    
+    cdef          OptimizedProfile opt          # temporary optimized profile
+    cdef          Profile          profile      # temporary profile
+    cdef          Profile          profile_l    # temporary profile, 3' truncated
+    cdef          Profile          profile_r    # temporary profile, 5' truncated
+    cdef          Profile          profile_t    # temporary profile, 5' + 3' truncated
 
     # --- Magic methods ------------------------------------------------------
 
@@ -532,6 +539,7 @@ cdef class Pipeline:
         self,
         Alphabet alphabet,
         int64_t Z,
+        Background background = None,
         *,
     #     bint bias_filter=True,
     #     bint null2=True,
@@ -553,6 +561,7 @@ cdef class Pipeline:
     ):
         cdef int clen_hint = self.CLEN_HINT
         cdef int l_hint    = self.L_HINT
+        cdef int m_hint    = self.M_HINT
 
         with nogil:
             self._pli = libinfernal.cm_pipeline.cm_pipeline_Create(
@@ -570,10 +579,26 @@ cdef class Pipeline:
         # record alphabet
         self.alphabet = alphabet
 
+        # use the backgroud model or create a default one
+        if background is None:
+            self.background = Background(alphabet)
+        elif background.alphabet != self.alphabet:
+            raise AlphabetMismatch(self.alphabet, background.alphabet)
+        else:
+            self.background = background.copy() # FIXME: do we really need a copy?
+
         # create a Randomness object exposing the internal pipeline RNG
         self.randomness = Randomness.__new__(Randomness)
         self.randomness._owner = self
         self.randomness._rng = self._pli.r
+
+        # create empty profiles and optimized profile to reuse globally
+        # between queries rather than reallocating on every new query
+        self.profile = Profile(m_hint, self.alphabet)
+        self.opt = OptimizedProfile(m_hint, self.alphabet)
+        self.profile_r = Profile(m_hint, self.alphabet)
+        self.profile_l = Profile(m_hint, self.alphabet)
+        self.profile_t = Profile(m_hint, self.alphabet)
 
         # configure the pipeline with the additional keyword arguments
         self.seed = seed
@@ -796,8 +821,8 @@ cdef class Pipeline:
             # ESL_FAIL(eslERANGE, info->pli->errbuf, "search will require %.2f Mb > %.2f Mb limit.\nIncrease limit with --smxsize, or don't use --max,--nohmm,--qdb,--fqdb.", reqMb, info->smxsize);
 
         # cm_pipeline_Create() sets configure/align options in pli->cm_config_opts, pli->cm_align_opts
-        # NB: is this really necessary? we want to avoid modifying CM which is the query
-        #     if we can help it
+        # NOTE: is this really necessary? we want to avoid modifying CM which is the query
+        #       if we can help it
         info.cm.config_opts = info.pli.cm_config_opts
         info.cm.align_opts  = info.pli.cm_align_opts
 
@@ -815,42 +840,59 @@ cdef class Pipeline:
     cdef int _setup_hmm_filter(
         self,
         WORKER_INFO* info,
-    ) except * nogil:
+        CM query,
+    ) except *:
+        cdef int status
         cdef bint do_trunc_ends = True #(esl_opt_GetBoolean(go, "--notrunc") || esl_opt_GetBoolean(go, "--inttrunc")) ? FALSE : TRUE;
 
         # set up the HMM filter-related structures
-        info.gm = libhmmer.p7_profile.p7_profile_Create(info.cm.fp7.M, info.cm.abc)
-        info.om = p7_oprofile_Create(info.cm.fp7.M, info.cm.abc)
-        info.bg = libhmmer.p7_bg.p7_bg_Create(info.cm.abc)
-        libhmmer.modelconfig.p7_ProfileConfig(info.cm.fp7, info.bg, info.gm, 100, libhmmer.p7_LOCAL) # 100 is a dummy length for now; and MSVFilter requires local mode
-        p7_oprofile_Convert(info.gm, info.om)                          # <om> is now p7_LOCAL, multihit
+        self.profile = Profile(info.cm.fp7.M, self.alphabet) # FIXME: only reallocate if profile is too small, check Pipeline._get_om_from_query in HMMER Pipeline
+        info.gm = self.profile._gm
+        self.opt = OptimizedProfile(info.cm.fp7.M, self.alphabet)
+        info.om = self.opt._om
+        info.bg = self.background._bg
+        self.profile.configure(query.filter_hmm, self.background, 100, multihit=True, local=True)
+        self.opt.convert(self.profile) # <om> is now p7_LOCAL, multihit
+
         # clone gm into Tgm before putting it into glocal mode
-        if do_trunc_ends:
-            info.Tgm = libhmmer.p7_profile.p7_profile_Clone(info.gm)
+        if do_trunc_ends: 
+            self.profile_t = self.profile.copy()
+            info.Tgm = self.profile_t._gm
 
         # after om has been created, convert gm to glocal, to define envelopes in cm_pipeline()
-        libhmmer.modelconfig.p7_ProfileConfig(info.cm.fp7, info.bg, info.gm, 100, libhmmer.p7_GLOCAL)
+        self.profile.configure(query.filter_hmm, self.background, 100, multihit=True, local=False)
 
         if do_trunc_ends:
             # create Rgm, Lgm, and Tgm specially-configured profiles for defining envelopes around
             # hits that may be truncated 5' (Rgm), 3' (Lgm) or both (Tgm).
-            info.Rgm = libhmmer.p7_profile.p7_profile_Clone(info.gm)
-            info.Lgm = libhmmer.p7_profile.p7_profile_Clone(info.gm)
+            # FIXME: reuse instead of copying (which causes reallocation)
+            self.profile_r = self.profile.copy()
+            info.Rgm = self.profile_r._gm
+            self.profile_l = self.profile.copy()
+            info.Lgm = self.profile_l._gm
             # info->Tgm was created when gm was still in local mode above
             # we cloned Tgm from the while profile was still locally configured, above
-            libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeTrunc(info.Rgm, 100)
-            libinfernal.cm_p7_modelconfig.p7_ProfileConfig3PrimeTrunc(info.cm.fp7, info.Lgm, 100)
-            libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeAnd3PrimeTrunc(info.Tgm, 100)
+            status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeTrunc(info.Rgm, 100)
+            if status != libeasel.eslOK:
+                return status
+            status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig3PrimeTrunc(info.cm.fp7, info.Lgm, 100)
+            if status != libeasel.eslOK:
+                return status
+            status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeAnd3PrimeTrunc(info.Tgm, 100)
+            if status != libeasel.eslOK:
+                return status
         else:
             info.Rgm = NULL
             info.Lgm = NULL
             info.Tgm = NULL
 
         # copy E-value parameters
-        libeasel.vec.esl_vec_FCopy(info.cm.fp7_evparam, libinfernal.CM_p7_NEVPARAM, info.p7_evparam);
+        libeasel.vec.esl_vec_FCopy(info.cm.fp7_evparam, libinfernal.CM_p7_NEVPARAM, info.p7_evparam)
 
         # compute msvdata
         info.msvdata = libhmmer.p7_scoredata.p7_hmm_ScoreDataCreate(info.om, NULL)
+        if info.msvdata == NULL:
+            raise AllocationError("P7_SCOREDATA", sizeof(P7_SCOREDATA))
 
         return libeasel.eslOK
 
@@ -859,42 +901,21 @@ cdef class Pipeline:
         WORKER_INFO *info,
     ) noexcept nogil:
         # TODO: free or use Python garbage collection with dedicated objects
-        # if(info.pli != NULL):
-        #     cm_pipeline_Destroy(info.pli, info.cm);
-        #     info.pli = NULL
-        # if(info.th != NULL):
-        #     cm_tophits_Destroy(info->th)
-        #     info->th = NULL
-        # if(info.cm != NULL):
-        #     FreeCM(info->cm)
-        #     info->cm = NULL
-
-        # if(info.om != NULL):
-        #     p7_oprofile_Destroy(info->om)
-        #     info->om = NULL
-        # if(info.gm != NULL):
-        #     p7_profile_Destroy(info->gm)
-        #     info->gm = NULL
-        # if(info.Rgm != NULL):
-        #     p7_profile_Destroy(info->Rgm)
-        #     info->Rgm = NULL
-        # if(info.Lgm != NULL):
-        #     p7_profile_Destroy(info->Lgm);
-        #     info->Lgm = NULL
-        # if(info.Tgm != NULL):
-        #     p7_profile_Destroy(info->Tgm);
-        #     info->Tgm = NULL
-        # if(info.bg != NULL):
-        #     p7_bg_Destroy(info->bg)
-        #     info->bg = NULL
-        # if(info.p7_evparam != NULL):
-        #     free(info->p7_evparam)
-        #     info->p7_evparam = NULL
-        # if(info.msvdata    != NULL):
-        #     p7_hmm_ScoreDataDestroy(info->msvdata);
-        #     info->msvdata    = NULL
+        # CM_PIPELINE      *pli         # <-- owned by self 
+        # CM_TOPHITS       *th          # <-- owned by the returned Tophits
+        # CM_t             *cm          # <-- owned by the input CM
+        # P7_BG            *bg          # <-- owned by self.background
+        # P7_OPROFILE      *om          # <-- owned by self.opt
+        # P7_PROFILE       *gm          # <-- owned by self.profile
+        # P7_PROFILE       *Rgm         # <-- owned by self.profile_r
+        # P7_PROFILE       *Lgm         # <-- owned by self.profile_l
+        # P7_PROFILE       *Tgm         # <-- owned by self.profile_t
+        # P7_SCOREDATA     *msvdata     # <-- not owned
+        # float            *p7_evparam  # <-- stack allocated (!)
+        # float             smxsize
+        if info.msvdata:
+            libhmmer.p7_scoredata.p7_hmm_ScoreDataDestroy(info.msvdata)
         return
-
 
     # --- Methods ------------------------------------------------------------
 
@@ -983,14 +1004,19 @@ cdef class Pipeline:
         if not self.alphabet._eq(sequences.alphabet):
             raise AlphabetMismatch(self.alphabet, sequences.alphabet)
 
+        # ensure the CM defines a filter HMM
+        if query.filter_hmm is None:
+            raise ValueError(f"no filter HMM was found for CM {query.name!r}")
+
+        # use struct to keep track of current worker state
         tinfo.p7_evparam = p7_evparam
         tinfo.smxsize = 128.0
         tinfo.cm = query._cm
         tinfo.pli = self._pli  # Maybe copy?
         tinfo.th = top_hits._th
-
-        if (tinfo.cm.flags & libinfernal.cm.CMH_FP7) == 0:
-            raise ValueError(f"no filter HMM was found for CM {query.name!r}")
+        tinfo.bg = self.background._bg
+        tinfo.Rgm = tinfo.Lgm = tinfo.Tgm = NULL
+        tinfo.msvdata = NULL
 
         # check if we have E-value stats for the CM, we require them
         # *unless* we are going to run the pipeline in HMM-only mode.
@@ -1014,7 +1040,7 @@ cdef class Pipeline:
         status = self._configure_cm(&tinfo)
         if status != libeasel.eslOK:
             raise EaselError(status, tinfo.pli.errbuf.decode('utf-8', 'ignore'))
-        status = self._setup_hmm_filter(&tinfo)
+        status = self._setup_hmm_filter(&tinfo, query)
         if status != libeasel.eslOK:
             raise EaselError(status, tinfo.pli.errbuf.decode('utf-8', 'ignore'))
 
@@ -1037,11 +1063,6 @@ cdef class Pipeline:
             eZ = tinfo.cm.expA[tinfo.pli.final_cm_exp_mode].cur_eff_dbsize
         libinfernal.cm_tophits.cm_tophits_ComputeEvalues(tinfo.th, eZ, 0)
 
-        ## merge the search results
-        # cm_tophits_Merge(t.th,   info.th);
-        # cm_pipeline_Merge(info[0].pli, info.pli);
-        # free_info(&info)
-
         # Sort by sequence index/position and remove duplicates
         libinfernal.cm_tophits.cm_tophits_SortForOverlapRemoval(tinfo.th)
         status = libinfernal.cm_tophits.cm_tophits_RemoveOrMarkOverlaps(tinfo.th, False, tinfo.pli.errbuf)
@@ -1054,18 +1075,8 @@ cdef class Pipeline:
         else:
             libinfernal.cm_tophits.cm_tophits_SortByEvalue(tinfo.th)
 
-        # Enforce threshold
+        # Enforce threshold (and copy pipeline configuration) before returning
         top_hits._threshold(self)
-        # libinfernal.cm_tophits.cm_tophits_Threshold(tinfo.th, tinfo.pli)
-        # tally up total number of hits and target coverage
-        # NOTE: likely uneeded as we don't report accounting?
-        # for i in range(tinfo.th.N):
-        #     if (tinfo.th.hit[i].flags & (libinfernal.cm_tophits.CM_HIT_IS_REPORTED | libinfernal.cm_tophits.CM_HIT_IS_REPORTED)) != 0:
-        #         tinfo.pli.acct[tinfo.th.hit[i].pass_idx].n_output += 1
-        #         tinfo.pli.acct[tinfo.th.hit[i].pass_idx].pos_output += abs(tinfo.th.hit[i].stop - tinfo.th.hit[i].start) + 1
-        # Record pipeline configuration before returning
-        # memcpy(&top_hits._pli, self._pli, sizeof(CM_PIPELINE)) # FIXME?
-
         return top_hits
 
 
