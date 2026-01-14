@@ -11,6 +11,7 @@ from libc.stdlib cimport malloc, calloc, realloc, free
 from libc.string cimport memset, memcpy, memmove, strdup, strlen
 
 cimport libeasel
+cimport libeasel.alphabet
 cimport libeasel.vec
 cimport libeasel.fileparser
 cimport libhmmer.p7_bg
@@ -59,8 +60,13 @@ if TARGET_SYSTEM == "Linux":
 elif TARGET_SYSTEM == "Darwin" or TARGET_SYSTEM.endswith("BSD"):
     from .fileobj.bsd cimport fileobj_bsd_open as fopen_obj
 
+cimport pyhmmer.easel
+cimport pyhmmer.plan7
 from pyhmmer.easel cimport (
     Alphabet,
+    AA,
+    DNA,
+    RNA,
     DigitalSequenceBlock,
     Randomness,
     SequenceFile,
@@ -126,8 +132,7 @@ cdef class CM:
         obj._cm = cm
 
         if alphabet is None:
-            obj.alphabet = Alphabet.__new__(Alphabet)
-            obj.alphabet._abc = cm.abc
+            obj.alphabet = Alphabet.from_ptr(cm.abc)
         else:
             obj.alphabet = alphabet
 
@@ -203,6 +208,7 @@ cdef class CMFile:
     cdef CM_FILE* _fp
     cdef str      _name
     cdef Alphabet _alphabet
+    cdef ESL_ALPHABET* _abc
 
     # --- Constructor --------------------------------------------------------
 
@@ -242,7 +248,7 @@ cdef class CMFile:
         cmfp.fname     = NULL
         cmfp.errbuf[0] = b"\0"
 
-        # set up the HMM file 
+        # set up the HMM file
         cmfp.hfp = <P7_HMMFILE*> malloc(sizeof(P7_HMMFILE))
         if cmfp.hfp == NULL:
             libinfernal.cm_file.cm_file_Close(cmfp)
@@ -261,7 +267,7 @@ cdef class CMFile:
 
         # NOTE(@althonos): Because we set `do_gzip=True`, the parser will now
         #                  expect a lot of things to be available only through
-        #                  streams, and won't attempt to e.g. `seek` the 
+        #                  streams, and won't attempt to e.g. `seek` the
         #                  internal file object (or at least not as often).
         cmfp.hfp.f            = cmfp.f
 
@@ -334,10 +340,11 @@ cdef class CMFile:
 
     def __cinit__(self):
         self._alphabet = None
+        self._abc = NULL
         self._fp = NULL
         self._name = None
 
-    def __init__(self, object file, bint db = True):
+    def __init__(self, object file, bint db = True, *, Alphabet alphabet = None):
         cdef int                 status
         cdef bytes               fspath
         cdef char[eslERRBUFSIZE] errbuf
@@ -367,8 +374,12 @@ cdef class CMFile:
         elif status != libeasel.eslOK:
             raise UnexpectedError(status, function)
 
-        self._alphabet = Alphabet.__new__(Alphabet)
-        self._alphabet._abc = NULL
+        if alphabet is None:
+            self._alphabet = None
+            self._abc = NULL
+        else:
+            self._alphabet = alphabet
+            self._abc = alphabet._abc
 
     def __dealloc__(self):
         if self._fp:
@@ -440,7 +451,10 @@ cdef class CMFile:
             raise ValueError("I/O operation on closed file.")
 
         # don't run in *nogil* because the file may call a file-like handle
-        status = libinfernal.cm_file.cm_file_Read(self._fp, True, &self._alphabet._abc, &cm)
+        status = libinfernal.cm_file.cm_file_Read(self._fp, True, &self._abc, &cm)
+
+        if self._alphabet is None and self._abc != NULL:
+            self._alphabet = Alphabet.from_ptr(self._abc)
 
         if status == libeasel.eslOK:
             return CM.from_ptr(cm, self._alphabet)
@@ -482,6 +496,20 @@ cdef uint32_t DEFAULT_SEED    = 181
 # cdef size_t   HMMER_TARGET_LIMIT = 100000
 
 cdef class Pipeline:
+    """An Infernal accelerated sequence/covariance model comparison pipeline.
+
+    The Infernal pipeline handles the comparison of digital sequences to
+    CMs. Since Infernal 1.1, the pipeline is accelerated using the HMMER
+    platform acceleration to compute initial SSV/MSV/Viterbi filters before
+    actually attempting full alignments.
+
+    Attributes:
+        alphabet (`~pyhmmer.easel.Alphabet`): The alphabet for which the
+            pipeline is configured.
+        randomness (`~pyhmmer.easel.Randomness`): The random number generator
+            being used by the pipeline.
+
+    """
 
     CLEN_HINT = 100  # default model size
     L_HINT    = 100  # default sequence size
@@ -569,10 +597,10 @@ cdef class Pipeline:
     def Z(self):
         """`int` or `None`: The number of effective targets searched.
 
-        It is used to compute the independent e-value for each domain, and
-        for an entire hit. If `None`, the parameter number will be set
-        automatically after all the comparisons have been done. Otherwise,
-        it can be set to an arbitrary number.
+        It is used to compute the independent e-value for each hit.
+        If `None`, the parameter number will be set automatically after all
+        the comparisons have been done. Otherwise, it can be set to an
+        arbitrary number.
 
         """
         return None if self._Z < 0 else self._Z
@@ -1027,17 +1055,17 @@ cdef class Pipeline:
             libinfernal.cm_tophits.cm_tophits_SortByEvalue(tinfo.th)
 
         # Enforce threshold
-        libinfernal.cm_tophits.cm_tophits_Threshold(tinfo.th, tinfo.pli)
-
+        top_hits._threshold(self)
+        # libinfernal.cm_tophits.cm_tophits_Threshold(tinfo.th, tinfo.pli)
         # tally up total number of hits and target coverage
         # NOTE: likely uneeded as we don't report accounting?
         # for i in range(tinfo.th.N):
         #     if (tinfo.th.hit[i].flags & (libinfernal.cm_tophits.CM_HIT_IS_REPORTED | libinfernal.cm_tophits.CM_HIT_IS_REPORTED)) != 0:
         #         tinfo.pli.acct[tinfo.th.hit[i].pass_idx].n_output += 1
         #         tinfo.pli.acct[tinfo.th.hit[i].pass_idx].pos_output += abs(tinfo.th.hit[i].stop - tinfo.th.hit[i].start) + 1
-
         # Record pipeline configuration before returning
-        memcpy(&top_hits._pli, self._pli, sizeof(CM_PIPELINE)) # FIXME?
+        # memcpy(&top_hits._pli, self._pli, sizeof(CM_PIPELINE)) # FIXME?
+
         return top_hits
 
 
@@ -1050,7 +1078,7 @@ cdef class Alignment:
     def __cinit__(self, Hit hit):
         self.hit = hit
         self._ad = hit._hit.ad
-    
+
     def __str__(self):
         assert self._ad != NULL
 
@@ -1374,6 +1402,25 @@ cdef class TopHits:
 
         """
         return self._query
+
+    # --- Utils --------------------------------------------------------------
+
+    cdef int _threshold(self, Pipeline pipeline) except 1 nogil:
+        # threshold the top hits with the given pipeline numbers
+        cdef int status = libinfernal.cm_tophits.cm_tophits_Threshold(self._th, pipeline._pli)
+        if status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_tophits_Threshold")
+        # record pipeline configuration
+        # NOTE: the pointers on the copy are set to NULL by precaution, but since
+        # `pipeline._pli` is allocated by the Python object directly, it will not
+        # be deallocated, so there should be no risk of double free nevertheless.
+        memcpy(&self._pli, pipeline._pli, sizeof(CM_PIPELINE))
+        self._pli.oxf = self._pli.oxb = self._pli.fwd = self._pli.bck = NULL
+        self._pli.gxf = self._pli.gxb = self._pli.gfwd = self._pli.gbck = NULL
+        self._pli.r = NULL
+        self._pli.ddef = NULL
+        self._pli.cmfp = NULL
+        return 0
 
     # --- Methods ------------------------------------------------------------
 
