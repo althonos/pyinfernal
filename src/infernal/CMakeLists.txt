@@ -75,21 +75,21 @@ set(INFERNAL_SOURCES
 
 # --- Detect platform-accelerated implementation -------------------------------
 
-if(INFERNAL_IMPL STREQUAL "SSE")
-    set(INFERNAL_SOURCES
-        ${INFERNAL_SOURCES}
-        impl_sse/impl_sse.h
-        impl_sse/cm_optimized.c
-        impl_sse/sse_cm_dpsearch.c
-        impl_sse/sse_cm_dpsmall.c
-        impl_sse/sse_cmcons_hitmx.c
-        impl_sse/sse_cmcons_mscyk.c
-        impl_sse/sse_cmsearch.c
-        impl_sse/sse_util.c
-    )
-else()
-    message(FATAL_ERROR "No Infernal implementation defined")
-endif()
+# if(INFERNAL_IMPL STREQUAL "SSE")
+#     set(INFERNAL_SOURCES
+#         ${INFERNAL_SOURCES}
+#         impl_sse/impl_sse.h
+#         impl_sse/cm_optimized.c
+#         impl_sse/sse_cm_dpsearch.c
+#         impl_sse/sse_cm_dpsmall.c
+#         impl_sse/sse_cmcons_hitmx.c
+#         impl_sse/sse_cmcons_mscyk.c
+#         impl_sse/sse_cmsearch.c
+#         impl_sse/sse_util.c
+#     )
+# else()
+#     message(FATAL_ERROR "No Infernal implementation defined")
+# endif()
 
 # --- Copy/patch source files if needed ----------------------------------------
 
