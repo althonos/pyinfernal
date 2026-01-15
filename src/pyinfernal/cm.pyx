@@ -17,6 +17,8 @@ cimport libeasel.fileparser
 cimport libhmmer.p7_bg
 cimport libhmmer.p7_profile
 cimport libhmmer.p7_hmm
+cimport libhmmer.p7_gmx
+cimport libhmmer.p7_domaindef
 cimport libhmmer.p7_scoredata
 cimport libhmmer.modelconfig
 cimport libinfernal.cm
@@ -36,10 +38,11 @@ from libeasel.random cimport ESL_RANDOMNESS
 from libhmmer.p7_hmm cimport P7_HMM
 from libhmmer.p7_hmmfile cimport P7_HMMFILE
 from libhmmer.p7_scoredata cimport P7_SCOREDATA
+from libhmmer.p7_gmx cimport P7_GMX
 from libhmmer.logsum cimport p7_FLogsumInit
 from libinfernal cimport CM_p7_NEVPARAM
 from libinfernal.cm_file cimport CM_FILE, cm_file_formats_e
-from libinfernal.cm_pipeline cimport CM_PIPELINE, cm_zsetby_e, cm_pipemodes_e, cm_newmodelmodes_e
+from libinfernal.cm_pipeline cimport CM_PIPELINE, CM_PLI_ACCT, cm_zsetby_e, cm_pipemodes_e, cm_newmodelmodes_e
 from libinfernal.cm_tophits cimport CM_TOPHITS, CM_HIT
 from libinfernal.cm cimport CM_t
 from libinfernal.cmsearch cimport WORKER_INFO
@@ -47,13 +50,13 @@ from libinfernal.logsum cimport FLogsumInit, init_ilogsum
 from libinfernal.cm_alidisplay cimport CM_ALIDISPLAY
 
 if HMMER_IMPL == "VMX":
-    from libhmmer.impl_vmx.p7_omx cimport P7_OM_BLOCK
+    from libhmmer.impl_vmx.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
     from libhmmer.impl_vmx.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
 elif HMMER_IMPL == "SSE":
-    from libhmmer.impl_sse.p7_omx cimport P7_OM_BLOCK
+    from libhmmer.impl_sse.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
     from libhmmer.impl_sse.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
 elif HMMER_IMPL == "NEON":
-    from libhmmer.impl_neon.p7_omx cimport P7_OM_BLOCK
+    from libhmmer.impl_neon.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
     from libhmmer.impl_neon.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
 
 if TARGET_SYSTEM == "Linux":
@@ -86,6 +89,7 @@ import datetime
 import enum
 import io
 import os
+import operator
 import sys
 import warnings
 
@@ -1002,6 +1006,50 @@ cdef class Pipeline:
 
     # --- Utils --------------------------------------------------------------
 
+    cpdef void clear(self):
+        """Reset the pipeline to its default state.
+        """
+        assert self._pli != NULL
+
+        cdef int      status
+        cdef int      i
+        cdef uint32_t seed
+
+        # reinitialize the random number generator, even if
+        # `self._pli.do_reseeding` is False, because a true
+        # deallocation/reallocation of a P7_PIPELINE would reinitialize
+        # it unconditionally.
+        self.randomness.seed(self._seed)
+
+        # reinitialize the domaindef
+        status = libhmmer.p7_domaindef.p7_domaindef_Reuse(self._pli.ddef)
+        if status != libeasel.eslOK:
+            raise UnexpectedError(status, "p7_domaindef_Reuse")
+
+        with nogil:
+            # reinitialize the dynamic programming matrices
+            # (no status check, infallible)
+            p7_omx_Reuse(self._pli.oxf)
+            p7_omx_Reuse(self._pli.oxb)
+            p7_omx_Reuse(self._pli.fwd)
+            p7_omx_Reuse(self._pli.bck)
+            libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gxf)
+            libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gxb)
+            libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gfwd)
+            libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gbck)
+            # Reset accounting values
+            self._pli.nseqs           = 0
+            self._pli.nmodels         = 0
+            self._pli.nnodes          = 0
+            self._pli.nmodels_hmmonly = 0
+            self._pli.nnodes_hmmonly  = 0
+            self._pli.cmfp            = NULL
+            self._pli.errbuf[0]       = b'\0'
+            # Mass reset of pipeline accounting statistics
+            # (we could use `cm_pli_ZeroAccounting`, but because every field
+            # is a `uint64_t`, we can just set the whole array to zero bytes)
+            memset(self._pli.acct, 0, libinfernal.cm_pipeline.NPLI_PASSES * sizeof(CM_PLI_ACCT))
+
     cdef int _configure_cm(
         self,
         WORKER_INFO* info,
@@ -1050,7 +1098,6 @@ cdef class Pipeline:
             self.profile_t = Profile(M, self.alphabet)
         else:
             self.profile.clear()
-            self.opt.clear()
             self.profile_r.clear()
             self.profile_l.clear()
             self.profile_t.clear()
