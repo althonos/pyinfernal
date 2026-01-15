@@ -14,11 +14,6 @@ import types
 import warnings
 from unittest import mock
 
-try:
-    import numpy
-except ImportError:
-    numpy = None
-
 import pyhmmer.easel
 import pyhmmer.plan7
 import pyinfernal.cm
@@ -82,7 +77,6 @@ def load_tests(loader, tests, ignore):
             # import the submodule and add it to the tests
             module = importlib.import_module(".".join([pkg.__name__, subpkgname]))
             globs = dict(
-                numpy=numpy,
                 easel=pyhmmer.easel,
                 plan7=pyhmmer.plan7,
                 cm=pyinfernal.cm,
