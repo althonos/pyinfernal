@@ -189,9 +189,9 @@ cdef class CMFile:
             >>> with CMFile("tests/data/cms/iss33.cm") as cm_file:
             ...     cm = cm_file.read()
             >>> cm.name
-            b'LSU_rRNA_bacteria'
+            'LSU_rRNA_bacteria'
             >>> cm.accession
-            b'RF02541'
+            'RF02541'
 
         Load all the CMs from a CM file into a `list`::
 
@@ -200,7 +200,7 @@ cdef class CMFile:
             >>> len(cms)
             5
             >>> [cm.accession for cm in cms]
-            [b'RF00005', b'RF00006', b'RF01185', b'RF01855', b'RF01852']
+            ['RF00005', 'RF00006', 'RF01185', 'RF01855', 'RF01852']
 
     """
 
@@ -837,18 +837,35 @@ cdef class Pipeline:
         W_from_cmdline = -1 if not info.pli.do_wcx else <int> (info.cm.clen * info.pli.wcx)
         return libinfernal.cm_modelconfig.cm_Configure(info.cm, info.pli.errbuf, W_from_cmdline)
 
+    cdef int _grow_profiles(
+        self,
+        CM query,
+    ) except 1:
+        cdef int M = query.M
+        if self.profile._gm.allocM < M:
+            self.profile = Profile(M, self.alphabet)
+            self.opt = OptimizedProfile(M, self.alphabet)
+            self.profile_r = Profile(M, self.alphabet)
+            self.profile_l = Profile(M, self.alphabet)
+            self.profile_t = Profile(M, self.alphabet)
+        else:
+            self.profile.clear()
+            self.opt.clear()
+            self.profile_r.clear()
+            self.profile_l.clear()
+            self.profile_t.clear()
+
     cdef int _setup_hmm_filter(
         self,
         WORKER_INFO* info,
         CM query,
-    ) except *:
+    ) except 1:
         cdef int status
         cdef bint do_trunc_ends = True #(esl_opt_GetBoolean(go, "--notrunc") || esl_opt_GetBoolean(go, "--inttrunc")) ? FALSE : TRUE;
 
         # set up the HMM filter-related structures
-        self.profile = Profile(info.cm.fp7.M, self.alphabet) # FIXME: only reallocate if profile is too small, check Pipeline._get_om_from_query in HMMER Pipeline
+        self._grow_profiles(query)
         info.gm = self.profile._gm
-        self.opt = OptimizedProfile(info.cm.fp7.M, self.alphabet)
         info.om = self.opt._om
         info.bg = self.background._bg
         self.profile.configure(query.filter_hmm, self.background, 100, multihit=True, local=True)
@@ -856,8 +873,9 @@ cdef class Pipeline:
 
         # clone gm into Tgm before putting it into glocal mode
         if do_trunc_ends: 
-            self.profile_t = self.profile.copy()
-            info.Tgm = self.profile_t._gm
+            status = libhmmer.p7_profile.p7_profile_Copy(self.profile._gm, self.profile_t._gm)
+            if status != libeasel.eslOK:
+                raise UnexpectedError(status, "p7_profile_Copy")
 
         # after om has been created, convert gm to glocal, to define envelopes in cm_pipeline()
         self.profile.configure(query.filter_hmm, self.background, 100, multihit=True, local=False)
@@ -866,21 +884,27 @@ cdef class Pipeline:
             # create Rgm, Lgm, and Tgm specially-configured profiles for defining envelopes around
             # hits that may be truncated 5' (Rgm), 3' (Lgm) or both (Tgm).
             # FIXME: reuse instead of copying (which causes reallocation)
-            self.profile_r = self.profile.copy()
+            status = libhmmer.p7_profile.p7_profile_Copy(self.profile._gm, self.profile_r._gm)
+            if status != libeasel.eslOK:
+                raise UnexpectedError(status, "p7_profile_Copy")
+            status = libhmmer.p7_profile.p7_profile_Copy(self.profile._gm, self.profile_l._gm)
+            if status != libeasel.eslOK:
+                raise UnexpectedError(status, "p7_profile_Copy")
+            # setup pointers
+            info.Tgm = self.profile_t._gm
             info.Rgm = self.profile_r._gm
-            self.profile_l = self.profile.copy()
             info.Lgm = self.profile_l._gm
             # info->Tgm was created when gm was still in local mode above
             # we cloned Tgm from the while profile was still locally configured, above
             status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeTrunc(info.Rgm, 100)
             if status != libeasel.eslOK:
-                return status
+                raise UnexpectedError(status, "p7_ProfileConfig5PrimeTrunc")
             status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig3PrimeTrunc(info.cm.fp7, info.Lgm, 100)
             if status != libeasel.eslOK:
-                return status
+                raise UnexpectedError(status, "p7_ProfileConfig3PrimeTrunc")
             status = libinfernal.cm_p7_modelconfig.p7_ProfileConfig5PrimeAnd3PrimeTrunc(info.Tgm, 100)
             if status != libeasel.eslOK:
-                return status
+                raise UnexpectedError(status, "p7_ProfileConfig5PrimeAnd3PrimeTrunc")
         else:
             info.Rgm = NULL
             info.Lgm = NULL
@@ -894,7 +918,7 @@ cdef class Pipeline:
         if info.msvdata == NULL:
             raise AllocationError("P7_SCOREDATA", sizeof(P7_SCOREDATA))
 
-        return libeasel.eslOK
+        return 0
 
     cdef void free_info(
         self,
