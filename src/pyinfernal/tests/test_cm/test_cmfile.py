@@ -75,18 +75,18 @@ class _TestCMFilePath:
 class _TestISS33(_TestCMFile):
     ID = "iss33"
     NAMES = [
-        b"LSU_rRNA_bacteria",
+        "LSU_rRNA_bacteria",
     ]
 
 
 class _TestRF5c(_TestCMFile):
     ID = "5.c"
     NAMES = [
-        b"tRNA",
-        b"Vault",
-        b"snR75",
-        b"Plant_SRP",
-        b"tRNA-Sec",
+        "tRNA",
+        "Vault",
+        "snR75",
+        "Plant_SRP",
+        "tRNA-Sec",
     ]
 
 
