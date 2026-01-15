@@ -53,7 +53,7 @@ set(CYTHON_HEADERS_DIR ${CMAKE_CURRENT_LIST_DIR}/include)
 # Install shared library objects to `pyinfernal.libs` (like auditwheel repair)
 if(PYINFERNAL_INSTALL_LIBS)
     set(PYINFERNAL_INSTALL_LIBS_DIR "${CMAKE_PROJECT_NAME}.libs")
-    message(STATUS "Installing shared libraries to ${PYINFERNAL_INSTALL_LIBS}")
+    message(STATUS "Installing shared libraries to ${PYINFERNAL_INSTALL_LIBS_DIR}")
     install(DIRECTORY ${CYTHON_HEADERS_DIR} DESTINATION ${PYINFERNAL_INSTALL_LIBS_DIR})
 endif()
 
