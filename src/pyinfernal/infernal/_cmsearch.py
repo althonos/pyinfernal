@@ -391,6 +391,7 @@ def cmsearch(
         queries = (queries,)
 
     if isinstance(sequences, SequenceFile):
+        raise NotImplementedError("cmsearch currently does not support `SequenceFile` targets")
         if sequences.name is None:
             raise ValueError("expected named `SequenceFile` for targets")
         if not sequences.digital:
@@ -401,6 +402,8 @@ def cmsearch(
     elif isinstance(sequences, DigitalSequenceBlock):
         alphabet = alphabet or sequences.alphabet
         targets = sequences
+        if "Z" not in options:
+            options["Z"] = targets.total_length()
     else:
         queries = peekable(queries)
         try:
