@@ -18,5 +18,5 @@ interface.
 External resources
 ------------------
 
-For a more detailed explanation of HMMER features, you should also check
-the `HMMER User's Guide <http://eddylab.org/software/hmmer/Userguide.pdf>`_.
+For a more detailed explanation of Infernal features, you should also check
+the `Infernal User's Guide <http://eddylab.org/software/infernal/Userguide.pdf>`_.
