@@ -103,15 +103,15 @@ cdef extern from "infernal.h" nogil:
         uint32_t checksum
         int     *map
 
-        # char  *comlog
-        # char  *ctime
-        # int    nseq
-        # float  eff_nseq
-        # float  ga
-        # float  tc
-        # float  nc
+        char  *comlog
+        char  *ctime
+        int    nseq
+        float  eff_nseq
+        float  ga
+        float  tc
+        float  nc
 
-        # float *null
+        float *null
 
         int   M
         int   clen
@@ -119,41 +119,41 @@ cdef extern from "infernal.h" nogil:
         int  *ndidx
         char *stid
 
-        # int  *cfirst
-        # int  *cnum
-        # int  *plast
-        # int  *pnum
+        int  *cfirst
+        int  *cnum
+        int  *plast
+        int  *pnum
 
-        # int   nodes
-        # int  *nodemap
-        # char *ndtype
+        int   nodes
+        int  *nodemap
+        char *ndtype
 
-        # float **t
-        # float **e
-        # float  *begin
-        # float  *end
+        float **t
+        float **e
+        float  *begin
+        float  *end
 
-        # float **tsc
-        # float **esc
-        # float **oesc
-        # float **lmesc
-        # float **rmesc
-        # float *beginsc
-        # float *endsc
+        float **tsc
+        float **esc
+        float **oesc
+        float **lmesc
+        float **rmesc
+        float *beginsc
+        float *endsc
 
-        # int  **itsc
-        # int  **iesc
-        # int  **ioesc
-        # int  **ilmesc
-        # int  **irmesc
-        # int   *ibeginsc
-        # int   *iendsc
+        int  **itsc
+        int  **iesc
+        int  **ioesc
+        int  **ilmesc
+        int  **irmesc
+        int   *ibeginsc
+        int   *iendsc
 
-        # float  pbegin
-        # float  pend
+        float  pbegin
+        float  pend
 
-        # float  null2_omega
-        # float  null3_omega
+        float  null2_omega
+        float  null3_omega
 
         int    flags
 
@@ -224,7 +224,7 @@ cdef extern from "infernal.h" nogil:
     CM_t *CreateCMShell()
     void  CreateCMBody(CM_t *cm, int nnodes, int nstates, int clen, const ESL_ALPHABET *abc)
     void  CMZero(CM_t *cm)
-    CMRenormalize(CM_t *cm)
+    void  CMRenormalize(CM_t *cm)
     void  FreeCM(CM_t *cm)
     void  CMSimpleProbify(CM_t *cm)
     # int   rsearch_CMProbifyEmissions(CM_t *cm, fullmat_t *fullmat);
@@ -269,19 +269,19 @@ cdef extern from "infernal.h" nogil:
     # int   cm_p7_Exponentiate(P7_HMM *hmm, double z);
     # void  cm_banner(FILE *fp, char *progname, char *banner);
     # void  cm_CalcExpSc(CM_t *cm, float **ret_expsc, float **ret_expsc_noss);
-    # int   cm_Validate(CM_t *cm, float tol, char *errbuf);
+    int   cm_Validate(CM_t *cm, float tol, char *errbuf)
     # char *CMStatetype(char st);
     # char *CMNodetype(char nd);
     # char *CMStateid(char st);
     # char *MarginalMode(char mode);
     # int   ModeEmitsLeft(char mode);
     # int   ModeEmitsRight(char mode);
-    # int   cm_SetName(CM_t *cm, char *name);
-    # int   cm_SetAccession(CM_t *cm, char *acc);
-    # int   cm_SetDescription(CM_t *cm, char *desc);
+    int   cm_SetName(CM_t *cm, char *name)
+    int   cm_SetAccession(CM_t *cm, char *acc)
+    int   cm_SetDescription(CM_t *cm, char *desc)
     # int   cm_SetConsensus(CM_t *cm, CMConsensus_t *cons, ESL_SQ *sq);
     # int   cm_AppendComlog(CM_t *cm, int argc, char **argv, int add_seed, uint32_t seed);
-    # int   cm_SetCtime(CM_t *cm);
+    int   cm_SetCtime(CM_t *cm)
     # int   DefaultNullModel(const ESL_ALPHABET *abc, float **ret_null);
     # int   CMAllocNullModel(CM_t *cm);
     # void  CMSetNullModel(CM_t *cm, float *null);

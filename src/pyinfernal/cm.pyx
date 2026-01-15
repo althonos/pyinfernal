@@ -8,7 +8,7 @@ from libc cimport errno
 from libc.stdio cimport FILE, fopen, fclose
 from libc.stdint cimport uint32_t, uint64_t, int64_t
 from libc.stdlib cimport malloc, calloc, realloc, free
-from libc.string cimport memset, memcpy, memmove, strdup, strlen
+from libc.string cimport memset, memcpy, memmove, strdup, strndup, strncpy, strlen
 
 cimport libeasel
 cimport libeasel.alphabet
@@ -77,10 +77,12 @@ from pyhmmer.plan7 cimport (
 )
 
 include "exceptions.pxi"
+include "_strings.pxi"
 # include "_getid.pxi"
 
 # --- Python imports ---------------------------------------------------------
 
+import datetime
 import io
 import os
 import sys
@@ -119,6 +121,11 @@ ctypedef fused SearchTargets:
 
 cdef class CM:
     """A data structure storing an Infernal Covariance Model.
+
+    Attributes:
+        filter_hmm (`pyhmmer.plan7.HMM` or `None`): The HMM used for
+            the initial filtering stages inside the Infernal pipeline.
+
     """
     cdef CM_t*              _cm
     cdef readonly Alphabet alphabet
@@ -147,11 +154,43 @@ cdef class CM:
 
         return obj
 
+    # --- Magic methods ------------------------------------------------------
+
     def __cinit__(self):
         self.alphabet = None
         self.filter_hmm = None
         self.ml_hmm = None
         self._cm = NULL
+
+    def __init__(
+        self,
+        Alphabet alphabet not None,
+        int M,
+        int N,
+        int clen,
+        str name not None,
+    ):
+        """__init__(self, alphabet, M, name)\n--\n
+
+        Create a new, empty CM from scratch.
+
+        Arguments:
+            alphabet (`~pyhmmer.easel.Alphabet`): The alphabet of the model.
+            M (`int`): The number of nodes of the model.
+            N (`int`): The number of states of the model.
+            clen (`int`): The model consensus length.
+            name (`str`): The name of the model.
+
+        """
+        # store the alphabet so it's not deallocated
+        self.alphabet = alphabet
+        # create a new HMM suitable for at least M nodes
+        with nogil:
+            self._cm = libinfernal.cm.CreateCM(M, N, clen, alphabet._abc)
+        if not self._cm:
+            raise AllocationError("CM_t", sizeof(CM_t))
+        # record mandatory name
+        self.name = name
 
     def __dealloc__(self):
         if self._cm is not NULL:
@@ -159,24 +198,164 @@ cdef class CM:
             self._cm.mlp7 = NULL # owned by `self.ml_hmm`
             libinfernal.cm.FreeCM(self._cm)
 
+    def __sizeof__(self):
+        assert self._cm != NULL
+        return sizeof(self) + libinfernal.cm.cm_Sizeof(self._cm)
+
+    # --- Properties ---------------------------------------------------------
+
+    @property
+    def N(self):
+        """`int`: The number of nodes in the model.
+        """
+        assert self._cm != NULL
+        return self._cm.nodes
+
     @property
     def M(self):
+        """`int`: The number of states in the model.
+        """
         assert self._cm != NULL
         return self._cm.M
 
     @property
     def name(self):
+        """`str`: The name of the CM.
+        """
         assert self._cm != NULL
         return PyUnicode_FromString(self._cm.name)
+
+    @name.setter
+    def name(self, object name not None):
+        assert self._cm != NULL
+        status = _set_str(self._cm, name, <str_setter_t> libinfernal.cm.cm_SetName)
+        if status == libeasel.eslEMEM:
+            raise AllocationError("char", sizeof(char), len(name))
+        elif status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_SetName")
 
     @property
     def accession(self):
         """`str` or `None`: The accession of the CM, if any.
         """
         assert self._cm != NULL
-        if self._cm.acc == NULL:
+        if not self._cm.flags & libinfernal.cm.CMH_ACC:
             return None
+        assert self._cm.acc != NULL
         return PyUnicode_FromString(self._cm.acc)
+
+    @property
+    def description(self):
+        """`str` or `None`: The description of the CM, if any.
+        """
+        assert self._cm != NULL
+        if not self._cm.flags & libinfernal.cm.CMH_DESC:
+            return None
+        assert self._cm.desc != NULL
+        return PyUnicode_FromString(self._cm.desc)
+
+    @property
+    def command_line(self):
+        """`str` or `None`: The command line that built the model.
+        """
+        assert self._cm != NULL
+        if self._cm.comlog == NULL:
+            return None
+        return self._cm.comlog.decode("ascii")
+
+    @command_line.setter
+    def command_line(self, str cli):
+        assert self._cm != NULL
+
+        cdef const char*  cli_
+        cdef ssize_t      n    = -1
+
+        if cli is None:
+            free(self._cm.comlog)
+            self._cm.comlog = NULL
+        else:
+            cli_ = PyUnicode_AsUTF8AndSize(cli, &n)
+            self._cm.comlog = <char*> realloc(<void*> self._cm.comlog, sizeof(char) * (n + 1))
+            if self._cm.comlog == NULL:
+                raise AllocationError("char", sizeof(char), n+1)
+            with nogil:
+                strncpy(self._cm.comlog, cli_, n+1)
+
+    @property
+    def nseq(self):
+        """`int` or `None`: The number of training sequences used, if any.
+        """
+        assert self._cm != NULL
+        return None if self._cm.nseq == -1 else self._cm.nseq
+
+    @property
+    def nseq_effective(self):
+        """`float` or `None`: The number of effective sequences used, if any.
+        """
+        assert self._cm != NULL
+        return None if self._cm.eff_nseq == -1.0 else self._cm.eff_nseq
+
+    @property
+    def creation_time(self):
+        """`datetime.datetime` or `None`: The creation time of the CM, if any.
+
+        Example:
+            Get the creation time for any HMM::
+
+                >>> lsu_rrna.creation_time
+                datetime.datetime(2014, 6, 16, 10, 10)
+
+            Set the creation time manually to a different date and time::
+
+                >>> ctime = datetime.datetime(2026, 1, 15, 13, 59, 10)
+                >>> lsu_rrna.creation_time = ctime
+                >>> lsu_rrna.creation_time
+                datetime.datetime(2026, 1, 15, 13, 59, 10)
+
+        Danger:
+            Internally, Infernal always uses ``asctime`` to generate a
+            timestamp for the HMMs, so this property assumes that every
+            creation time field can be parsed into a `datetime.datetime`
+            object using the  ``"%a %b %d %H:%M:%S %Y"`` format.
+
+        """
+        assert self._cm != NULL
+
+        cdef size_t l
+        cdef str    ctime
+
+        if self._cm.ctime == NULL:
+            return None
+
+        l = strlen(self._cm.ctime)
+        ctime = PyUnicode_DecodeASCII(self._cm.ctime, l, NULL)
+        return datetime.datetime.strptime(ctime,'%a %b %d %H:%M:%S %Y')
+
+    @creation_time.setter
+    def creation_time(self, object ctime):
+        assert self._cm != NULL
+
+        cdef str         ty
+        cdef str         formatted
+        cdef const char* s
+        cdef ssize_t     n
+
+        if ctime is None:
+            free(self._cm.ctime)
+            self._cm.ctime = NULL
+            return
+        elif not isinstance(ctime, datetime.datetime):
+            ty = type(ctime).__name__
+            raise TypeError(f"Expected datetime.datetime or None, found {ty}")
+
+        formatted = ctime.strftime('%a %b %e %H:%M:%S %Y')
+        s = PyUnicode_AsUTF8AndSize(formatted, &n)
+
+        self._cm.ctime = <char*> realloc(<void*> self._cm.ctime, sizeof(char) * (n + 1))
+        if self._cm.ctime == NULL:
+            raise AllocationError("char", sizeof(char), n+1)
+        with nogil:
+            strncpy(self._cm.ctime, s, n + 1)
 
 
 cdef class CMFile:
@@ -344,6 +523,29 @@ cdef class CMFile:
         self._name = None
 
     def __init__(self, object file, bint db = True, *, Alphabet alphabet = None):
+        """__init__(self, file, db=True, *, alphabet=None)\n--\n
+
+        Create a CM reader from the given path or file.
+
+        Arguments:
+            file (`str`, `bytes`, `os.PathLike` or file-like object): Either
+                the path to a file containing the CMs to read, or a file-like
+                object in **binary mode**.
+            db (`bool`): Set to `False` to force the parser to ignore the
+                pressed HMM database if it finds one. Defaults to `True`.
+            alphabet (`~pyhmmer.easel.Alphabet`, optional): The alphabet
+                of the CMs in the file. Supports auto-detection, but passing
+                a non-`None` argument will facilitate MyPy type inference.
+
+        Raises:
+            `TypeError`: When ``file`` is not of the correct type, or when
+                ``file`` is a file-like object open in text mode rather
+                than binary mode.
+            `RuntimeError`: When the internal system function
+                (``fopencookie`` on Linux, ``funopen`` on BSD) fails to open
+                the file.
+
+        """
         cdef int                 status
         cdef bytes               fspath
         cdef char[eslERRBUFSIZE] errbuf
@@ -439,8 +641,6 @@ cdef class CMFile:
                 in different alphabets, or in an alphabet that is different
                 from the alphabet used to initialize the `HMMFile`.
 
-        .. versionadded:: 0.4.11
-
         """
         cdef int   status
         cdef CM    py_cm
@@ -479,6 +679,8 @@ cdef class CMFile:
 
             >>> with CMFile("tests/data/cms/5.c.cm") as cm_file:
             ...     cm = cm_file.read()
+            >>> cm_file.closed
+            True
 
         """
         if self._fp:
@@ -521,7 +723,7 @@ cdef class Pipeline:
     cdef readonly Alphabet         alphabet
     cdef readonly Randomness       randomness
     cdef readonly Background       background
-    
+
     cdef          OptimizedProfile opt          # temporary optimized profile
     cdef          Profile          profile      # temporary profile
     cdef          Profile          profile_l    # temporary profile, 3' truncated
@@ -765,9 +967,6 @@ cdef class Pipeline:
     @property
     def incE(self):
         """`float`: The per-target E-value threshold for including a hit.
-
-        .. versionadded:: 0.4.6
-
         """
         assert self._pli != NULL
         return self._pli.incE
@@ -783,8 +982,6 @@ cdef class Pipeline:
 
         If set to a non-`None` value, this threshold takes precedence over
         the per-target E-value inclusion threshold (`Pipeline.incE`).
-
-        .. versionadded:: 0.4.8
 
         """
         assert self._pli != NULL
@@ -872,7 +1069,7 @@ cdef class Pipeline:
         self.opt.convert(self.profile) # <om> is now p7_LOCAL, multihit
 
         # clone gm into Tgm before putting it into glocal mode
-        if do_trunc_ends: 
+        if do_trunc_ends:
             status = libhmmer.p7_profile.p7_profile_Copy(self.profile._gm, self.profile_t._gm)
             if status != libeasel.eslOK:
                 raise UnexpectedError(status, "p7_profile_Copy")
@@ -925,7 +1122,7 @@ cdef class Pipeline:
         WORKER_INFO *info,
     ) noexcept nogil:
         # TODO: free or use Python garbage collection with dedicated objects
-        # CM_PIPELINE      *pli         # <-- owned by self 
+        # CM_PIPELINE      *pli         # <-- owned by self
         # CM_TOPHITS       *th          # <-- owned by the returned Tophits
         # CM_t             *cm          # <-- owned by the input CM
         # P7_BG            *bg          # <-- owned by self.background
@@ -1193,9 +1390,6 @@ cdef class Alignment:
     @property
     def posterior_probabilities(self):
         """`str`: Posterior probability annotation of the alignment.
-
-        .. versionadded:: 0.10.5
-
         """
         assert self._ad != NULL
         return PyUnicode_DecodeASCII(self._ad.ppline, self._ad.N, NULL)

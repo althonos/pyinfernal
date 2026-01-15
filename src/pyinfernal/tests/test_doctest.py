@@ -50,10 +50,11 @@ def load_tests(loader, tests, ignore):
     if sys.argv[0].endswith("green"):
         return tests
 
-    # doctests require `numpy` to run, which may not be available because
-    # it is a pain to get to work out-of-the-box on OSX inside CI
-    if numpy is None:
-        return tests
+    # add a sample HMM and some sequences to use with the globals
+    data = os.path.realpath(os.path.join(__file__, os.pardir, "data"))
+    cm_path = os.path.join(data, "cms", "iss33.cm")
+    with pyinfernal.cm.CMFile(cm_path) as cm_file:
+        lsu_rrna = cm_file.read()
 
     def setUp(self):
         warnings.simplefilter("ignore")
@@ -80,6 +81,7 @@ def load_tests(loader, tests, ignore):
                 cm=pyinfernal.cm,
                 pyhmmer=pyhmmer,
                 pyinfernal=pyinfernal,
+                lsu_rrna=lsu_rrna,
                 **module.__dict__
             )
             tests.addTests(
