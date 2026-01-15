@@ -210,6 +210,9 @@ cdef class CM:
         assert self._cm != NULL
         return sizeof(self) + libinfernal.cm.cm_Sizeof(self._cm)
 
+    def __copy__(self):
+        return self.copy()
+
     # --- Properties ---------------------------------------------------------
 
     @property
@@ -365,6 +368,26 @@ cdef class CM:
         with nogil:
             strncpy(self._cm.ctime, s, n + 1)
 
+    # --- Methods ------------------------------------------------------------
+
+    cpdef CM copy(self):
+        """Create a copy of this CM and return the copy.
+        """
+        cdef int                 status
+        cdef char[eslERRBUFSIZE] errbuf
+        cdef CM_t*               copy   = NULL
+
+        with nogil:
+            status = libinfernal.cm.cm_Clone(self._cm, errbuf, &copy)
+        if status == libeasel.eslEMEM:
+            raise AllocationError("CM_t", sizeof(CM_t))
+        elif status == libeasel.eslEINCOMPAT:
+            raise EaselError(status, errbuf.decode("utf-8", "ignore"))
+        elif status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_Clone")
+
+        assert copy != NULL
+        return CM.from_ptr(copy, alphabet=self.alphabet)
 
 cdef class CMFile:
     """A wrapper around a file storing serialized CMs.
@@ -767,7 +790,7 @@ cdef class Pipeline:
         with nogil:
             self._pli = libinfernal.cm_pipeline.cm_pipeline_Create(
                 NULL,                               # ESL_GETOPTS *go
-                alphabet._abc,                      # ESL_ALPHABET *abc
+                <ESL_ALPHABET*> alphabet._abc,      # ESL_ALPHABET *abc
                 clen_hint,                          # int clen_hint
                 l_hint,                             # int L_hint
                 Z,                                  # int Z
@@ -1303,12 +1326,20 @@ cdef class Pipeline:
         SearchTargets sequences,
     ):
         # adapted from `serial_master` in `cmsearch.c`, outer loop code
-
         cdef float[CM_p7_NEVPARAM] p7_evparam
         cdef WORKER_INFO           tinfo
         cdef int                   status
         cdef double                eZ
         cdef TopHits               top_hits = TopHits(query)
+
+        # FIXME: as the pipeline also handles the configuration of the CM,
+        #        we need to first make a copy here otherwise the query is
+        #        left in configured state, which it unusable for subsequent
+        #        pipeline calls. Would be better to figure out how to simply
+        #        "deinitialize" the pipeline when done, and to use a lock/copy
+        #        in the `pyinfernal.infernal` Python code instead to manage
+        #        ownership
+        query = query.copy()
 
         # check that all alphabets are consistent
         if not self.alphabet._eq(query.alphabet):
@@ -1363,10 +1394,10 @@ cdef class Pipeline:
             # recycling memory between targets
             if SearchTargets is DigitalSequenceBlock:
                 Pipeline._search_loop(&tinfo, sequences._refs, sequences._length, nbps)
-            elif SearchTargets is SequenceFile:
-                raise NotImplementedError("Pipeline.search_cm")
-            else:
-                raise NotImplementedError("Pipeline.search_cm")
+            # elif SearchTargets is SequenceFile:
+            #     raise NotImplementedError("Pipeline.search_cm")
+            # else:
+            #     raise NotImplementedError("Pipeline.search_cm")
 
         # we need to re-compute e-values before merging (when list will be sorted)
         if tinfo.pli.do_hmmonly_cur:
@@ -1383,12 +1414,17 @@ cdef class Pipeline:
 
         # Resort: by score (usually) or by position (if in special 'terminate after F3' mode) */
         if tinfo.pli.do_trm_F3:
-            libinfernal.cm_tophits.cm_tophits_SortByPosition(tinfo.th)
+            status = libinfernal.cm_tophits.cm_tophits_SortByPosition(tinfo.th)
+            if status != libeasel.eslOK:
+                raise UnexpectedError(status, "cm_tophits_SortByPosition")
         else:
             libinfernal.cm_tophits.cm_tophits_SortByEvalue(tinfo.th)
+            if status != libeasel.eslOK:
+                raise UnexpectedError(status, "cm_tophits_SortByEvalue")
 
         # Enforce threshold (and copy pipeline configuration) before returning
         top_hits._threshold(self)
+        top_hits._empty = False
         return top_hits
 
 
@@ -1686,10 +1722,12 @@ cdef class TopHits:
     cdef CM_TOPHITS* _th
     cdef CM_PIPELINE _pli
     cdef object      _query
+    cdef bint        _empty
 
     def __cinit__(self):
         self._th = NULL
         self._query = None
+        self._empty = True
         memset(&self._pli, 0, sizeof(CM_PIPELINE))
 
     def __init__(self, object query not None):
@@ -1817,7 +1855,108 @@ cdef class TopHits:
         self._pli.cmfp = NULL
         return 0
 
+    # cdef int _sort_by_key(self) except 1 nogil:
+    #     cdef int status = libhmmer.p7_tophits.p7_tophits_SortBySortkey(self._th)
+    #     if status != libeasel.eslOK:
+    #         raise UnexpectedError(status, "p7_tophits_SortBySortkey")
+    #     return 0
+
+    # cdef int _sort_by_seqidx(self) except 1 nogil:
+    #     cdef int status = libhmmer.p7_tophits.p7_tophits_SortBySeqidxAndAlipos(self._th)
+    #     if status != libeasel.eslOK:
+    #         raise UnexpectedError(status, "p7_tophits_SortBySeqidxAndAlipos")
+    #     return 0
+    
+    cdef void _check_threshold_parameters(self, const CM_PIPELINE* other) except *:
+        # check comparison counters are consistent
+        if self._pli.Z_setby != other.Z_setby:
+            raise ValueError("Trying to merge `TopHits` with `Z` values obtained with different methods.")
+        elif self._pli.Z_setby == libinfernal.cm_pipeline.CM_ZSETBY_OPTION and self._pli.Z != other.Z:
+            raise ValueError("Trying to merge `TopHits` obtained from pipelines manually configured to different `Z` values.")
+        # check threshold modes are consistent
+        if self._pli.by_E != other.by_E:
+            raise ValueError(f"Trying to merge `TopHits` obtained from pipelines with different reporting threshold modes: {self._pli.by_E} != {other.by_E}")
+        elif self._pli.inc_by_E != other.inc_by_E:
+            raise ValueError("Trying to merge `TopHits` obtained from pipelines with different inclusion threshold modes")
+        # check inclusion and reporting threshold are the same
+        if (self._pli.by_E and self._pli.E != other.E) or (not self._pli.by_E and self._pli.T != other.T):
+            raise ValueError("Trying to merge `TopHits` obtained from pipelines with different reporting thresholds.")
+        elif (self._pli.inc_by_E and self._pli.incE != other.incE) or (not self._pli.inc_by_E and self._pli.incT != other.incT):
+            raise ValueError("Trying to merge `TopHits` obtained from pipelines with different inclusion thresholds.")
+
     # --- Methods ------------------------------------------------------------
+
+    cpdef TopHits copy(self):
+        """Create a copy of this `TopHits` instance.
+
+        .. versionadded:: 0.5.0
+
+        """
+        assert self._th != NULL
+        assert self._th.N >= 0
+
+        cdef int     i
+        cdef int     status
+        cdef TopHits copy   = TopHits.__new__(TopHits)
+
+        # record query metatada
+        copy._query = self._query
+        copy._empty = self._empty
+
+        with nogil:
+            # copy pipeline configuration
+            memcpy(&copy._pli, &self._pli, sizeof(CM_PIPELINE))
+            # allocate copy top hits
+            copy._th = libinfernal.cm_tophits.cm_tophits_Create()
+            if copy._th == NULL:
+                raise AllocationError("CM_TOPHITS", sizeof(CM_TOPHITS))
+            # there is no global `cm_tophits_Clone` so we need to copy hit-by-hit
+            for i in range(self._th.N):
+                # first use `cm_tophits_CloneHitMostly` to create the copy
+                status = libinfernal.cm_tophits.cm_tophits_CloneHitMostly(self._th, i, copy._th)
+                if status == libeasel.eslEMEM:
+                    raise AllocationError("CM_HIT", sizeof(CM_HIT))
+                elif status != libeasel.eslOK:
+                    raise UnexpectedError(status, "cm_tophits_CloneHitMostly")
+                # setup pointer to the unsorted
+                copy._th.hit[i] = &copy._th.unsrt[i]
+                # then record things that are not copied by `cm_tophits_CloneHitMostly`
+                assert copy._th.N == i + 1
+                copy._th.hit[i].hit_idx  = self._th.hit[i].hit_idx
+                copy._th.hit[i].any_oidx = self._th.hit[i].any_oidx
+                copy._th.hit[i].win_oidx = self._th.hit[i].win_oidx
+                # copy alidisplay
+                copy._th.hit[i].ad = libinfernal.cm_alidisplay.cm_alidisplay_Clone(self._th.hit[i].ad)
+                if copy._th.hit[i].ad == NULL:
+                    raise AllocationError("CM_ALIDISPLAY", sizeof(CM_ALIDISPLAY))
+                # copy name, accession, description
+                if self._th.hit[i].name == NULL:
+                    copy._th.hit[i].name = NULL 
+                else:
+                    copy._th.hit[i].name = strdup(self._th.hit[i].name)
+                    if copy._th.hit[i].name == NULL:
+                        raise AllocationError("char", sizeof(char), strlen(self._th.hit[i].name))
+                if self._th.hit[i].acc == NULL:
+                    copy._th.hit[i].acc = NULL 
+                else:
+                    copy._th.hit[i].acc = strdup(self._th.hit[i].acc)
+                    if copy._th.hit[i].acc == NULL:
+                        raise AllocationError("char", sizeof(char), strlen(self._th.hit[i].acc))
+                if self._th.hit[i].desc == NULL:
+                    copy._th.hit[i].desc     = NULL 
+                else:
+                    copy._th.hit[i].desc = strdup(self._th.hit[i].desc)
+                    if copy._th.hit[i].desc == NULL:
+                        raise AllocationError("char", sizeof(char), strlen(self._th.hit[i].desc))
+            # preserve order and accounting
+            copy._th.is_sorted_by_evalue           = self._th.is_sorted_by_evalue
+            copy._th.is_sorted_for_overlap_removal = self._th.is_sorted_for_overlap_removal
+            copy._th.is_sorted_for_overlap_markup  = self._th.is_sorted_for_overlap_markup
+            copy._th.is_sorted_by_position         = self._th.is_sorted_by_position
+            copy._th.nreported                     = self._th.nreported
+            copy._th.nincluded                     = self._th.nincluded
+
+        return copy
 
     cpdef void write(self, object fh, str format="3", bint header=True) except *:
         """Write the hits in tabular format to a file-like object.
@@ -1870,6 +2009,102 @@ cdef class TopHits:
             del sname
             del sacc
 
+    def merge(self, *others):
+        """Concatenate the hits from this instance and ``others``.
+
+        If the ``Z`` and ``domZ`` values used to compute E-values were
+        computed by the `Pipeline` from the number of targets, the returned
+        object will update them by summing ``self.Z`` and ``other.Z``. If
+        they were set manually, the manual value will be kept, provided
+        both values are equal.
+
+        Returns:
+            `~pyinfernal.cm.TopHits`: A new collection of hits containing
+            a copy of all the hits from ``self`` and ``other``, sorted
+            by E-value.
+
+        Raises:
+            `ValueError`: When trying to merge together several hits
+                obtained from different `Pipeline` with incompatible
+                parameters.
+
+        Caution:
+            This should only be done for hits obtained for the same domain
+            on similarly configured pipelines. Some internal checks will be
+            done to ensure this is not the case, but the results may not be
+            consistent at all.
+
+        """
+        assert self._th != NULL
+
+        cdef TopHits other
+        cdef TopHits other_copy
+        cdef TopHits merged     = self.copy()
+        cdef int     status     = libeasel.eslOK
+        cdef bint    mismatch   = False
+
+        for i, other in enumerate(others):
+            assert other._th != NULL
+            # copy hits (`cm_tophits_Merge` effectively destroys the old storage
+            # but because of Python references we cannot be sure that the data is
+            # not referenced anywhere else)
+            other_copy = other.copy()
+
+            # NOTE: we cannot always check for equality in case the query is
+            #       an optimized profile, because optimized profiles have a
+            #       different content if they are configured for different
+            #       sequences -- in that case we can only
+            if isinstance(merged._query, OptimizedProfile) and isinstance(other._query, OptimizedProfile):
+                mismatch = merged._query.name != other._query.name
+                mismatch |= merged._query.M != other._query.M
+                mismatch |= merged._query.accession != other._query.accession
+            else:
+                mismatch = merged._query != other._query
+            if mismatch:
+                raise ValueError("Trying to merge `TopHits` obtained from different queries")
+
+            # just store the copy if merging inside an empty uninitialized `TopHits`
+            if merged._empty:
+                merged._query = other._query
+                memcpy(&merged._pli, &other_copy._pli, sizeof(CM_PIPELINE))
+                merged._th, other_copy._th = other_copy._th, merged._th
+                merged._empty = other_copy._empty
+                continue
+
+            # check that the parameters are the same
+            merged._check_threshold_parameters(&other._pli)
+
+            # merge everything
+            with nogil:
+                # merge the top hits
+                status = libinfernal.cm_tophits.cm_tophits_Merge(merged._th, other_copy._th)
+                if status != libeasel.eslOK:
+                    raise UnexpectedError(status, "cm_pipeline_Merge")
+                # merge the pipelines
+                status = libinfernal.cm_pipeline.cm_pipeline_Merge(&merged._pli, &other_copy._pli)
+                if status != libeasel.eslOK:
+                    raise UnexpectedError(status, "cm_pipeline_Merge")
+
+        # Reset nincluded/nreports before thresholding, unless thresholding
+        # happens through bit cutoffs in which case the values are always
+        # correct
+        if not self._pli.use_bit_cutoffs:
+            for i in range(merged._th.N):
+                merged._th.hit[i].flags &= (~libinfernal.cm_tophits.CM_HIT_IS_REPORTED)
+                merged._th.hit[i].flags &= (~libinfernal.cm_tophits.CM_HIT_IS_INCLUDED)
+
+        # threshold the merged hits with new values
+        status = libinfernal.cm_tophits.cm_tophits_Threshold(merged._th, &merged._pli)
+        if status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_tophits_Threshold")
+
+        # sort by E-value
+        status = libinfernal.cm_tophits.cm_tophits_SortByEvalue(merged._th)
+        if status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_tophits_SortByEvalue")
+
+        # return the merged hits
+        return merged
 
 class NodeType(enum.IntEnum):
     #DUMMY = libinfernal.DUMMY_nd
