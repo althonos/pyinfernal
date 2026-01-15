@@ -73,10 +73,33 @@ directly from the command line using
 [`pydoc`](https://docs.python.org/3/library/pydoc.html):
 ```console
 $ pydoc pyinfernal.cm
-$ pydoc pyinfernal.plan7
+$ pydoc pyinfernal.infernal
 ``` -->
 
-<!-- ## 💡 Example -->
+## 💡 Example
+
+Use `pyinfernal` to run `cmsearch` to search for the genome of 
+*Escherichia coli str. K-12 substr. MG1655* ([U00096.3](www.ncbi.nlm.nih.gov/nuccore/U00096.3))
+for models from [RFam](https://rfam.org). This will produce an iterable 
+over [`TopHits`] that can be used for further sorting/querying in Python. 
+Processing happens in parallel using Python threads, 
+and a [`TopHits`] object is yielded for every [`CM`] in the input iterable.
+
+[`CM`]: https://pyinfernal.readthedocs.io/en/stable/api/cm/hmms.html#pyinfernal.plan7.HMM
+[`TopHits`]: https://pyinfernal.readthedocs.io/en/stable/api/cm/results.html#pyinfernal.plan7.TopHits
+
+```python
+import pyhmmer.easel
+import pyinfernal.cm
+import pyinfernal.infernal
+
+with pyhmmer.easel.SequenceFile("U00096.3.faa", digital=True) as seq_file:
+    sequences = seq_file.read_block()
+
+with pyinfernal.cm.CMFile("RFam.cm") as cm_file:
+    for hits in pyinfernal.cmsearch(cm_file, sequences, cpus=4):
+        print(f"CM {hits.query.name.decode()} found {len(hits)} hits in the target sequences")
+```
 
 ## 💭 Feedback
 

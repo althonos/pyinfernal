@@ -717,7 +717,7 @@ cdef class Pipeline:
     """
 
     CLEN_HINT = 100  # default model size
-    M_HINT    = 100  # default HMM size
+    M_HINT    = 100  # default model nodes
     L_HINT    = 100  # default sequence size
 
     cdef CM_PIPELINE* _pli
@@ -808,8 +808,6 @@ cdef class Pipeline:
         self.T = T
         self.incE = incE
         self.incT = incT
-
-        # self._pli.do_bot = False # FIXME: testing stuff
 
     def __dealloc__(self):
         # NOTE(@althonos): `cm_pipeline_Destroy` supposedly requires a `CM_t`
@@ -1037,10 +1035,9 @@ cdef class Pipeline:
             self._pli.nnodes_hmmonly  = 0
             self._pli.cmfp            = NULL
             self._pli.errbuf[0]       = b'\0'
-            # Mass reset of pipeline accounting statistics
-            # (we could use `cm_pli_ZeroAccounting`, but because every field
-            # is a `uint64_t`, we can just set the whole array to zero bytes)
-            memset(self._pli.acct, 0, libinfernal.cm_pipeline.NPLI_PASSES * sizeof(CM_PLI_ACCT))
+            # Reset pipeline accounting statistics
+            for i in range(libinfernal.cm_pipeline.NPLI_PASSES):
+                libinfernal.cm_pipeline.cm_pli_ZeroAccounting(&self._pli.acct[i])
 
     cdef int _configure_cm(
         self,
@@ -1122,7 +1119,6 @@ cdef class Pipeline:
         if do_trunc_ends:
             # create Rgm, Lgm, and Tgm specially-configured profiles for defining envelopes around
             # hits that may be truncated 5' (Rgm), 3' (Lgm) or both (Tgm).
-            # FIXME: reuse instead of copying (which causes reallocation)
             status = libhmmer.p7_profile.p7_profile_Copy(self.profile._gm, self.profile_r._gm)
             if status != libeasel.eslOK:
                 raise UnexpectedError(status, "p7_profile_Copy")
@@ -1191,9 +1187,10 @@ cdef class Pipeline:
     ) except 1 nogil:
         # adapted from `serial_loop` in `cmsearch.c`, inner loop code
 
-        cdef int      status
         cdef size_t   t
-        cdef uint64_t prv_pli_ntophits
+        cdef int      status
+        cdef uint64_t prv_pli_ntophits = 0
+        cdef ESL_SQ*  copy             = NULL
 
         # prepare pipeline for new model
         status = libinfernal.cm_pipeline.cm_pli_NewModel(
@@ -1214,36 +1211,88 @@ cdef class Pipeline:
         if status != libeasel.eslOK:
             raise UnexpectedError(status, "cm_pli_NewModel")
 
-        # run the inner loop on all sequences
-        for t in range(n_targets):
-            # configure the pipeline for a new sequence
-            status = libinfernal.cm_pipeline.cm_pli_NewSeq(info.pli, sq[t], t)
-            if status != libeasel.eslOK:
-                raise UnexpectedError(status, "cm_pli_NewSeq")
-
-            # run top strand
-            if info.pli.do_top:
-                prv_pli_ntophits = info.th.N
-                status = libinfernal.cm_pipeline.cm_Pipeline(info.pli, info.cm.offset, info.om, info.bg, info.p7_evparam, info.msvdata, sq[t], info.th, False, NULL, &info.gm, &info.Rgm, &info.Lgm, &info.Tgm, &info.cm)
+        try:
+            # run the inner loop on all sequences
+            for t in range(n_targets):
+                # configure the pipeline for a new sequence
+                status = libinfernal.cm_pipeline.cm_pli_NewSeq(info.pli, sq[t], t)
                 if status != libeasel.eslOK:
-                    raise EaselError(status, info.pli.errbuf.decode('utf-8', 'ignore'))
-                libinfernal.cm_pipeline.cm_pipeline_Reuse(info.pli)  # prepare for next search
-                if sq[t].C > 0:
-                    libinfernal.cm_pipeline.cm_pli_AdjustNresForOverlaps(info.pli, sq[t].C, False)
-                libinfernal.cm_tophits.cm_tophits_UpdateHitPositions(info.th, prv_pli_ntophits, sq[t].start, False)
+                    raise UnexpectedError(status, "cm_pli_NewSeq")
 
-            # reverse complement
-            if info.pli.do_bot and sq[t].abc.complement != NULL:
-                prv_pli_ntophits = info.th.N
-                libeasel.sq.esl_sq_ReverseComplement(sq[t])  # FIXME: make a copy?
-                status = libinfernal.cm_pipeline.cm_Pipeline(info.pli, info.cm.offset, info.om, info.bg, info.p7_evparam, info.msvdata, sq[t], info.th, True, NULL, &info.gm, &info.Rgm, &info.Lgm, &info.Tgm, &info.cm)
-                if status != libeasel.eslOK:
-                    raise EaselError(status, info.pli.errbuf.decode('utf-8', 'ignore'))
-                libinfernal.cm_pipeline.cm_pipeline_Reuse(info.pli)  # prepare for next search
-                if sq[t].C > 0:
-                    libinfernal.cm_pipeline.cm_pli_AdjustNresForOverlaps(info.pli, sq[t].C, True)
-                libinfernal.cm_tophits.cm_tophits_UpdateHitPositions(info.th, prv_pli_ntophits, sq[t].start, True)
-                libeasel.sq.esl_sq_ReverseComplement(sq[t])
+                # run top strand
+                if info.pli.do_top:
+                    prv_pli_ntophits = info.th.N
+                    status = libinfernal.cm_pipeline.cm_Pipeline(
+                        info.pli, 
+                        info.cm.offset, 
+                        info.om, 
+                        info.bg, 
+                        info.p7_evparam, 
+                        info.msvdata, 
+                        sq[t], 
+                        info.th, 
+                        False, # not reverse-complement
+                        NULL, 
+                        &info.gm, 
+                        &info.Rgm, 
+                        &info.Lgm, 
+                        &info.Tgm, 
+                        &info.cm
+                    )
+                    if status != libeasel.eslOK:
+                        raise EaselError(status, info.pli.errbuf.decode('utf-8', 'ignore'))
+                    libinfernal.cm_pipeline.cm_pipeline_Reuse(info.pli)  # prepare for next search
+                    # if sq[t].C > 0:
+                    #     libinfernal.cm_pipeline.cm_pli_AdjustNresForOverlaps(info.pli, sq[t].C, False)
+                    libinfernal.cm_tophits.cm_tophits_UpdateHitPositions(info.th, prv_pli_ntophits, sq[t].start, False)
+
+                # reverse complement
+                if info.pli.do_bot and sq[t].abc.complement != NULL:
+                    # allocate space for a copy
+                    if copy == NULL:
+                        copy = libeasel.sq.esl_sq_CreateDigital(info.pli.abc)
+                        if copy == NULL:
+                            raise AllocationError("ESL_SQ", sizeof(ESL_SQ))
+                    # copy sequence
+                    # FIXME: maybe we could avoid that if we used locks in the 
+                    #        right place, but for now needed as the same
+                    #        DigitalSequenceBlock may be shared between threads
+                    #        and cause race conditions
+                    status = libeasel.sq.esl_sq_Copy(sq[t], copy)
+                    if status != libeasel.eslOK:
+                        raise UnexpectedError(status, "esl_sq_Copy")
+                    # reverse complement the copy we own locally
+                    status = libeasel.sq.esl_sq_ReverseComplement(copy)
+                    if status != libeasel.eslOK:
+                        raise UnexpectedError(status, "esl_sq_ReverseComplement")
+
+                    prv_pli_ntophits = info.th.N
+                    status = libinfernal.cm_pipeline.cm_Pipeline(
+                        info.pli, 
+                        info.cm.offset, 
+                        info.om, 
+                        info.bg, 
+                        info.p7_evparam, 
+                        info.msvdata, 
+                        copy, 
+                        info.th, 
+                        True, # reverse-complement
+                        NULL, 
+                        &info.gm, 
+                        &info.Rgm, 
+                        &info.Lgm, 
+                        &info.Tgm, 
+                        &info.cm
+                    )
+                    if status != libeasel.eslOK:
+                        raise EaselError(status, info.pli.errbuf.decode('utf-8', 'ignore'))
+                    libinfernal.cm_pipeline.cm_pipeline_Reuse(info.pli)  # prepare for next search
+                    # if copy.C > 0:
+                    #     libinfernal.cm_pipeline.cm_pli_AdjustNresForOverlaps(info.pli, copy.C, True)
+                    libinfernal.cm_tophits.cm_tophits_UpdateHitPositions(info.th, prv_pli_ntophits, copy.start, True)
+
+        finally:
+            libeasel.sq.esl_sq_Destroy(copy)
 
         # Return 0 to indicate success
         return 0
@@ -1598,6 +1647,13 @@ cdef class Hit:
         return self._hit.pvalue
 
     @property
+    def evalue(self):
+        """`float`: The E-value of the bitscore.
+        """
+        assert self._hit != NULL
+        return self._hit.evalue
+
+    @property
     def strand(self):
         """`str`: The strand where the hit is located (either "+" or "-").
         """
@@ -1617,6 +1673,13 @@ cdef class Hit:
         """
         assert self._hit != NULL
         return self._hit.flags & libinfernal.cm_tophits.CM_HIT_IS_REPORTED != 0
+
+    @property
+    def duplicate(self):
+        """`bool`: Whether this hit is marked as *duplicate*.
+        """
+        assert self._hit != NULL
+        return self._hit.flags & libinfernal.cm_tophits.CM_HIT_IS_REMOVED_DUPLICATE != 0
 
 
 cdef class TopHits:
@@ -1681,6 +1744,37 @@ cdef class TopHits:
         return self._query
 
     @property
+    def Z(self):
+        """`float`: The effective target database size.
+        """
+        return self._pli.Z
+
+    @property
+    def E(self):
+        """`float`: The E-value threshold with which hits are reported.
+        """
+        return self._pli.E
+
+    @property
+    def T(self):
+        """`float` or `None`: The score threshold with which hits are reported.
+        """
+        return None if self._pli.by_E else self._pli.T
+
+
+    @property
+    def incE(self):
+        """`float`: The E-value threshold with which hits are included.
+        """
+        return self._pli.incE
+
+    @property
+    def incT(self):
+        """`float` or `None`: The score threshold with which hits are included.
+        """
+        return None if self._pli.inc_by_E else self._pli.incT
+
+    @property
     def included(self):
         """iterator of `Hit`: An iterator over the hits marked as *included*.
         """
@@ -1701,6 +1795,12 @@ cdef class TopHits:
     # --- Utils --------------------------------------------------------------
 
     cdef int _threshold(self, Pipeline pipeline) except 1 nogil:
+        cdef int i
+        # reset existing flags as Infernal doesn't by default
+        # if not self._pli.use_bit_cutoffs:
+        for i in range(self._th.N):
+            self._th.hit[i].flags &= (~libinfernal.cm_tophits.CM_HIT_IS_REPORTED)
+            self._th.hit[i].flags &= (~libinfernal.cm_tophits.CM_HIT_IS_INCLUDED)
         # threshold the top hits with the given pipeline numbers
         cdef int status = libinfernal.cm_tophits.cm_tophits_Threshold(self._th, pipeline._pli)
         if status != libeasel.eslOK:
