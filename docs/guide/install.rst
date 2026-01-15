@@ -64,7 +64,7 @@ one is available, or from source after compiling the Cython code :
 
 .. .. code:: ini
 
-..     [bioarchlinux]
+..     '[bioarchlinux]
 ..     Server = https://repo.bioarchlinux.org/$arch
 
 .. Then install the latest version of the package and its dependencies with ``pacman``:

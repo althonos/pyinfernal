@@ -9,4 +9,5 @@ This section contains a complete reference of the API of the different
 .. toctree::
    :maxdepth: 2
 
+   infernal/index
    cm/index
