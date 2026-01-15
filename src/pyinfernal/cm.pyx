@@ -1,3 +1,4 @@
+from cpython.exc cimport PyErr_WarnEx
 from cpython.unicode cimport (
     PyUnicode_FromString,
     PyUnicode_DecodeASCII,
@@ -591,7 +592,7 @@ cdef class CMFile:
 
     def __dealloc__(self):
         if self._fp:
-            warnings.warn("unclosed CM file", ResourceWarning)
+            PyErr_WarnEx(ResourceWarning, "unclosed CM file", 1)
             self.close()
 
     def __repr__(self):
