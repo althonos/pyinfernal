@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import contextlib
 import operator
@@ -142,7 +144,7 @@ class _ReverseSEARCHDispatcher(
         targets: DigitalSequenceBlock,
         cpus: int = 0,
         callback: Optional[Callable[["_SEARCHQueryType", int], None]] = None,
-        builder: Optional[Builder] = None,
+        builder: Optional["Builder"] = None,
         timeout: int = 1,
         backend: "BACKEND" = "threading",
         **options,  # type: Unpack[PipelineOptions]
@@ -436,7 +438,6 @@ def cmsearch(
         cpus=cpus,
         backend=backend,
         callback=callback,  # type: ignore
-        builder=None,
         **options,
     )
     return dispatcher.run()  # type: ignore
