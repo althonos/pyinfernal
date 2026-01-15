@@ -50,7 +50,7 @@ class _SEARCHWorker(
         )
 
     @query.register(CM)
-    def _(self, query: _AnyProfile) -> "TopHits[_AnyProfile]":  # type: ignore
+    def _(self, query: _P) -> "TopHits[_P]":  # type: ignore
         assert self.pipeline is not None
         return self.pipeline.search_cm(query, self.targets)
 
@@ -376,9 +376,9 @@ def cmsearch(
         For instance, to run a ``cmsearch`` using a bitscore cutoffs of
         5 instead of the default E-value cutoff, use::
 
-            >>> hits = next(cmsearch(lsu_rrna, sequences, T=5))
+            >>> hits = next(cmsearch(trna, sequences, T=5))
             >>> hits[0].score
-            8.601...
+            65.4...
 
         ``mypy`` should be able to detection which keywords can be passed 
         to `cmsearch` using a `TypedDict` annotation.

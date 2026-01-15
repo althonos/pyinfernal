@@ -55,6 +55,13 @@ def load_tests(loader, tests, ignore):
     cm_path = os.path.join(data, "cms", "iss33.cm")
     with pyinfernal.cm.CMFile(cm_path) as cm_file:
         lsu_rrna = cm_file.read()
+    cm_path = os.path.join(data, "cms", "5.c.cm")
+    with pyinfernal.cm.CMFile(cm_path) as cm_file:
+        cms = list(cm_file)
+        trna = next(cm for cm in cms if cm.name == 'tRNA')
+    fna_path = os.path.join(data, "seqs", "100k-4.fa")
+    with pyhmmer.easel.SequenceFile(fna_path, alphabet=lsu_rrna.alphabet, digital=True) as seqs_file:
+        sequences = seqs_file.read_block()
 
     def setUp(self):
         warnings.simplefilter("ignore")
@@ -82,6 +89,8 @@ def load_tests(loader, tests, ignore):
                 pyhmmer=pyhmmer,
                 pyinfernal=pyinfernal,
                 lsu_rrna=lsu_rrna,
+                trna=trna,
+                sequences=sequences,
                 **module.__dict__
             )
             tests.addTests(
