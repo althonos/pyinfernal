@@ -83,6 +83,7 @@ include "_strings.pxi"
 # --- Python imports ---------------------------------------------------------
 
 import datetime
+import enum
 import io
 import os
 import sys
@@ -1703,6 +1704,30 @@ cdef class TopHits:
             fclose(file)
             del sname
             del sacc
+
+
+class NodeType(enum.IntEnum):
+    #DUMMY = libinfernal.DUMMY_nd
+    BIF  = libinfernal.BIF_nd
+    MATP = libinfernal.MATP_nd
+    MATL = libinfernal.MATL_nd
+    MATR = libinfernal.MATR_nd
+    BEGL = libinfernal.BEGL_nd
+    BEGR = libinfernal.BEGR_nd
+    ROOT = libinfernal.ROOT_nd
+    END  = libinfernal.END_nd
+
+class StateType:
+    D  = libinfernal.D_st
+    MP = libinfernal.MP_st
+    ML = libinfernal.ML_st
+    MR = libinfernal.MR_st
+    IL = libinfernal.IL_st
+    IR = libinfernal.IR_st
+    S  = libinfernal.S_st
+    E  = libinfernal.E_st
+    B  = libinfernal.B_st
+    EL = libinfernal.EL_st
 
 # --- Module init code -------------------------------------------------------
 
