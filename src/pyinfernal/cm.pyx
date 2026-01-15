@@ -88,6 +88,8 @@ import io
 import os
 import sys
 import warnings
+
+from pyhmmer.utils import SizedIterator
 from pyhmmer.errors import (
     UnexpectedError,
     AllocationError,
@@ -1344,14 +1346,14 @@ cdef class Alignment:
     # --- Properties ---------------------------------------------------------
 
     @property
-    def hmm_from(self):
+    def cm_from(self):
         """`int`: The start coordinate of the alignment in the query CM.
         """
         assert self._ad != NULL
         return self._ad.cfrom_emit
 
     @property
-    def hmm_to(self):
+    def cm_to(self):
         """`int`: The end coordinate of the alignment in the query CM.
         """
         assert self._ad != NULL
@@ -1557,6 +1559,13 @@ cdef class Hit:
         return self._hit.pvalue
 
     @property
+    def strand(self):
+        """`str`: The strand where the hit is located (either "+" or "-").
+        """
+        assert self._hit != NULL
+        return "+" if self._hit.start < self._hit.stop else "-"
+
+    @property
     def included(self):
         """`bool`: Whether this hit is marked as *included*.
         """
@@ -1569,7 +1578,6 @@ cdef class Hit:
         """
         assert self._hit != NULL
         return self._hit.flags & libinfernal.cm_tophits.CM_HIT_IS_REPORTED != 0
-
 
 
 cdef class TopHits:
@@ -1632,6 +1640,24 @@ cdef class TopHits:
 
         """
         return self._query
+
+    @property
+    def included(self):
+        """iterator of `Hit`: An iterator over the hits marked as *included*.
+        """
+        return SizedIterator(
+            self._th.nincluded,
+            filter(operator.attrgetter("included"), self)
+        )
+
+    @property
+    def reported(self):
+        """iterator of `Hit`: An iterator over the hits marked as *reported*.
+        """
+        return SizedIterator(
+            self._th.nreported,
+            filter(operator.attrgetter("reported"), self)
+        )
 
     # --- Utils --------------------------------------------------------------
 
