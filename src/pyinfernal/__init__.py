@@ -39,16 +39,16 @@ References:
 #                  resolve them because they will have been loaded already. 
 from pyhmmer import errors, easel, plan7
 
-from . import cm
+from . import cm, infernal
 from .cm import __version__
+from .infernal import cmsearch
 
 __author__ = "Martin Larralde <martin.larralde@embl.de>"
 __license__ = "MIT"
 __all__ = [
-    "errors",
-    "easel",
-    "plan7",
     "cm",
+    "infernal",
+    "cmsearch",
 ]
 
 # Small addition to the docstring: we want to show a link redirecting to the
