@@ -40,12 +40,12 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://github.com/althonos/pyinfernal/"
-# "Documentation" = "https://pyinfernal.readthedocs.io/en/stable/"
-# "Bug Tracker" = "https://github.com/althonos/pyinfernal/issues"
-# "Changelog" = "https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md"
+"Documentation" = "https://pyinfernal.readthedocs.io/en/stable/"
+"Bug Tracker" = "https://github.com/althonos/pyinfernal/issues"
+"Changelog" = "https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md"
 # "Coverage" = "https://codecov.io/gh/althonos/pyinfernal/"
-# "Builds" = "https://github.com/althonos/pyinfernal/actions"
-# "PyPI" = "https://pypi.org/project/pyinfernal"
+"Builds" = "https://github.com/althonos/pyinfernal/actions"
+"PyPI" = "https://pypi.org/project/pyinfernal"
 # "PiWheels" = "https://piwheels.org/project/pyinfernal/"
 
 [project.optional-dependencies]
@@ -58,6 +58,7 @@ editable.verbose = false
 sdist.exclude = [
     "build",
     "benches",
+    "docs",
     "vendor/infernal/documentation",
     "vendor/infernal/miniapps",
     "vendor/**/*.ai",
