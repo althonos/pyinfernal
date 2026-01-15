@@ -696,13 +696,9 @@ cdef class CMFile:
             self._fp = NULL
 
 
-# cdef double   DEFAULT_F1      = 0.02
-# cdef double   DEFAULT_F2      = 1e-3
-# cdef double   DEFAULT_F3      = 1e-5
 cdef uint32_t DEFAULT_SEED    = 181
-# cdef double   DEFAULT_E       = 10.0
-# cdef double   DEFAULT_INCE    = 0.01
-# cdef size_t   HMMER_TARGET_LIMIT = 100000
+cdef double   DEFAULT_E       = 10.0
+cdef double   DEFAULT_INCE    = 0.01
 
 cdef class Pipeline:
     """An Infernal accelerated sequence/covariance model comparison pipeline.
@@ -751,22 +747,17 @@ cdef class Pipeline:
         int64_t Z,
         Background background = None,
         *,
-    #     bint bias_filter=True,
-    #     bint null2=True,
+        # bint bias_filter=True,
+        # bint null2=True,
         uint32_t seed=DEFAULT_SEED,
-    #     object Z=None,
-    #     object domZ=None,
-    #     double F1=DEFAULT_F1,
-    #     double F2=DEFAULT_F2,
-    #     double F3=DEFAULT_F3,
-    #     double E=DEFAULT_E,
-    #     object T=None,
-    #     double domE=DEFAULT_DOME,
-    #     object domT=None,
-    #     double incE=DEFAULT_INCE,
-    #     object incT=None,
-    #     double incdomE=DEFAULT_INCDOME,
-    #     object incdomT=None,
+        # object Z=None,
+        # double F1=DEFAULT_F1,
+        # double F2=DEFAULT_F2,
+        # double F3=DEFAULT_F3,
+        double E=DEFAULT_E,
+        object T=None,
+        double incE=DEFAULT_INCE,
+        object incT=None,
     #     str bit_cutoffs=None,
     ):
         cdef int clen_hint = self.CLEN_HINT
@@ -813,10 +804,10 @@ cdef class Pipeline:
         # configure the pipeline with the additional keyword arguments
         self.seed = seed
         self.Z = Z
-        # self.E = E
-        # self.T = T
-        # self.incE = incE
-        # self.incT = incT
+        self.E = E
+        self.T = T
+        self.incE = incE
+        self.incT = incT
 
         # self._pli.do_bot = False # FIXME: testing stuff
 
