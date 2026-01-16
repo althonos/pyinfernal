@@ -2,7 +2,6 @@
 
 *[Cython](https://cython.org/) bindings and Python interface to [Infernal](http://eddylab.org/infernal).*
 
-<!--
 [![Actions](https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=master&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pyinfernal/actions)
 [![Coverage](https://img.shields.io/codecov/c/gh/althonos/pyinfernal?logo=codecov&style=flat-square&maxAge=3600)](https://codecov.io/gh/althonos/pyinfernal/)
 [![PyPI](https://img.shields.io/pypi/v/pyinfernal.svg?logo=pypi&style=flat-square&maxAge=3600)](https://pypi.org/project/pyinfernal)
@@ -18,7 +17,7 @@
 [![Docs](https://img.shields.io/readthedocs/pyinfernal/latest?style=flat-square&maxAge=600)](https://pyinfernal.readthedocs.io)
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md)
 [![Downloads](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2Fpyinfernal&search=%5B0-9%5D%2B.%5B0-9%5D%2B(k%7CM)&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400)](https://pepy.tech/project/pyinfernal)
--->
+
 
 ## 🗺️ Overview
 
@@ -34,22 +33,17 @@ and follows a generally similar interface.
 
 *This library is still very experimental and has not been thoroughly tested yet, use with caution*.
 
-<!-- ## 🔧 Installing
+## 🔧 Installing
 
-`pyhmmer` can be installed from [PyPI](https://pypi.org/project/pyhmmer/),
+`pyinfernal` can be installed from [PyPI](https://pypi.org/project/pyinfernal/),
 which hosts some pre-built CPython wheels for Linux and MacOS on x86-64 and Arm64, as well as the code required to compile from source with Cython:
 ```console
-$ pip install pyhmmer
+$ pip install pyinfernal
 ```
 
 Compilation for UNIX PowerPC is not tested in CI, but should work out of the
 box. Note than non-UNIX operating systems (such as Windows) are not
-supported by HMMER.
-
-A [Bioconda](https://bioconda.github.io/) package is also available:
-```console
-$ conda install -c bioconda pyhmmer
-``` -->
+supported by Infernal.
 
 ## 🔖 Citation
 
