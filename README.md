@@ -87,10 +87,11 @@ import pyhmmer.easel
 import pyinfernal.cm
 import pyinfernal.infernal
 
-with pyhmmer.easel.SequenceFile("U00096.3.faa", digital=True) as seq_file:
+rna = pyhmmer.easel.Alphabet.rna()
+with pyhmmer.easel.SequenceFile("U00096.3.fna", digital=True, alphabet=rna) as seq_file:
     sequences = seq_file.read_block()
 
-with pyinfernal.cm.CMFile("RFam.cm") as cm_file:
+with pyinfernal.cm.CMFile("RFam.cm", alphabet=rna) as cm_file:
     for hits in pyinfernal.cmsearch(cm_file, sequences, cpus=4):
         print(f"CM {hits.query.name.decode()} found {len(hits)} hits in the target sequences")
 ```
