@@ -14,10 +14,10 @@ PyInfernal |Stars|
 |Actions| |Coverage| |PyPI| |Bioconda| |AUR| |Wheel| |Versions| |Implementations| |License| |Source| |Mirror| |Issues| |Docs| |Changelog| |Downloads|
 
 
-.. |Actions| image:: https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=master&logo=github&style=flat-square&maxAge=300
+.. |Actions| image:: https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=main&logo=github&style=flat-square&maxAge=300
    :target: https://github.com/althonos/pyinfernal/actions
 
-.. |GitLabCI| image:: https://img.shields.io/gitlab/pipeline/larralde/pyinfernal/master?gitlab_url=https%3A%2F%2Fgit.embl.de&logo=gitlab&style=flat-square&maxAge=600
+.. |GitLabCI| image:: https://img.shields.io/gitlab/pipeline/larralde/pyinfernal/main?gitlab_url=https%3A%2F%2Fgit.embl.de&logo=gitlab&style=flat-square&maxAge=600
    :target: https://git.embl.de/larralde/pyinfernal/-/pipelines
 
 .. |Coverage| image:: https://img.shields.io/codecov/c/gh/althonos/pyinfernal?logo=codecov&style=flat-square&maxAge=600
@@ -57,7 +57,7 @@ PyInfernal |Stars|
    :target: http://pyinfernal.readthedocs.io/en/stable/?badge=stable
 
 .. |Changelog| image:: https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square
-   :target: https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md
+   :target: https://github.com/althonos/pyinfernal/blob/main/CHANGELOG.md
 
 .. |Downloads| image:: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2Fpyinfernal&search=%5B0-9%5D%2B.%5B0-9%5D%2B(k%7CM)&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400
    :target: https://pepy.tech/project/pyinfernal

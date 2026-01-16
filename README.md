@@ -2,7 +2,7 @@
 
 *[Cython](https://cython.org/) bindings and Python interface to [Infernal](http://eddylab.org/infernal).*
 
-[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=master&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pyinfernal/actions)
+[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/pyinfernal/test.yml?branch=main&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pyinfernal/actions)
 [![Coverage](https://img.shields.io/codecov/c/gh/althonos/pyinfernal?logo=codecov&style=flat-square&maxAge=3600)](https://codecov.io/gh/althonos/pyinfernal/)
 [![PyPI](https://img.shields.io/pypi/v/pyinfernal.svg?logo=pypi&style=flat-square&maxAge=3600)](https://pypi.org/project/pyinfernal)
 [![Bioconda](https://img.shields.io/conda/vn/bioconda/pyinfernal?logo=anaconda&style=flat-square&maxAge=3600)](https://anaconda.org/bioconda/pyhmmer)
@@ -15,7 +15,7 @@
 [![Mirror](https://img.shields.io/badge/mirror-LUMC-003EAA.svg?maxAge=2678400&style=flat-square)](https://git.lumc.nl/mflarralde/pyinfernal/)
 [![GitHub issues](https://img.shields.io/github/issues/althonos/pyinfernal.svg?style=flat-square&maxAge=600)](https://github.com/althonos/pyinfernal/issues)
 [![Docs](https://img.shields.io/readthedocs/pyinfernal/latest?style=flat-square&maxAge=600)](https://pyinfernal.readthedocs.io)
-[![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pyinfernal/blob/master/CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pyinfernal/blob/main/CHANGELOG.md)
 [![Downloads](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2Fpyinfernal&search=%5B0-9%5D%2B.%5B0-9%5D%2B(k%7CM)&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400)](https://pepy.tech/project/pyinfernal)
 
 
