@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core", "cython >= 3.0", "pyhmmer ~=0.12.0a4"]
+requires = ["scikit-build-core", "cython >= 3.0", "pyhmmer ~=0.12.0a5"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -36,7 +36,7 @@ classifiers = [
     # "Typing :: Typed",
 ]
 dependencies = [
-    "pyhmmer ~=0.12.0a4",
+    "pyhmmer ~=0.12.0a5",
 ]
 
 [project.urls]
