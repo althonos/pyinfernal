@@ -14,15 +14,6 @@ set(CMAKE_REQUIRED_INCLUDES "${SAFE_CMAKE_REQUIRED_INCLUDES}")
 
 string(TOLOWER "${Python_INTERPRETER_ID}" SYS_IMPLEMENTATION_NAME)
 
-# --- Detect `pyhmmer` folder --------------------------------------------------
-
-execute_process(
-    COMMAND 
-        ${Python_EXECUTABLE} -c "import pyhmmer; print(pyhmmer.__path__[0], end='.libs')"
-    OUTPUT_VARIABLE 
-        PYHMMER_LIBS_DIR
-)
-
 # --- Prepare Cython directives and constants ----------------------------------
 
 set(CYTHON_DIRECTIVES
@@ -66,6 +57,15 @@ else()
     -X wraparound=False
   )
 endif()
+
+# --- Setup PyHMMER prefix for Cython ------------------------------------------
+
+foreach(_folder IN ITEMS ${PyHMMER_CYTHON_DIRS})
+  set(CYTHON_DIRECTIVES
+    ${CYTHON_DIRECTIVES}
+    -I ${_folder}
+  )
+endforeach()
 
 # --- Declare Cython extension -------------------------------------------------
 
