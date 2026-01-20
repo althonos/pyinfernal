@@ -317,9 +317,9 @@ index 93964d4b..1559b385 100644
 -  pli->F2_hmmonly = ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF2"));
 -  pli->F3_hmmonly = ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF3"));
 -  if(esl_opt_GetBoolean(go, "--hmmmax")) { 
-+  pli->F1_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF1")) : 1.0;
-+  pli->F2_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF2")) : 1.0;
-+  pli->F3_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF3")) : 1.0;
++  pli->F1_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF1")) : 0.02;
++  pli->F2_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF2")) : 1e-3;
++  pli->F3_hmmonly = go ? ESL_MIN(1.0, esl_opt_GetReal(go, "--hmmF3")) : 1e-5;
 +  if(go && esl_opt_GetBoolean(go, "--hmmmax")) { 
      pli->do_max_hmmonly  = TRUE;
      pli->do_bias_hmmonly = FALSE;
