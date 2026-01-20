@@ -1,0 +1,83 @@
+#target name                  accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#---------------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+tRNA-sample6/82250-82321      -         tRNA                 RF00005    cm        1       71    82250    82321      +    no    1 0.51   0.0   65.4   4.9e-15 !   -
+tRNA-sample2/53622-53692      -         tRNA                 RF00005    cm        1       71    53622    53692      +    no    1 0.58   0.0   60.8   9.8e-14 !   -
+tRNA-sample7/51572-51643      -         tRNA                 RF00005    cm        1       71    51572    51643      +    no    1 0.38   0.0   54.4   6.1e-12 !   -
+tRNA-sample4/62081-62154      -         tRNA                 RF00005    cm        1       71    62081    62154      +    no    1 0.53   0.0   53.2   1.3e-11 !   -
+tRNA-sample3/94923-94993      -         tRNA                 RF00005    cm        1       71    94923    94993      +    no    1 0.56   0.0   49.6   1.4e-10 !   -
+tRNA-sample1/46421-46490      -         tRNA                 RF00005    cm        1       71    46421    46490      +    no    1 0.40   0.0   43.8   5.4e-09 !   -
+tRNA-sample5/56066-56134      -         tRNA                 RF00005    cm        1       71    56066    56134      +    no    1 0.54   0.0   41.9   1.9e-08 !   -
+tRNA-sample8/12834-12904      -         tRNA                 RF00005    cm        1       71    12834    12904      +    no    1 0.38   0.0   41.1   3.3e-08 !   -
+tRNA-sample10/32353-32425     -         tRNA                 RF00005    cm        1       71    32353    32425      +    no    1 0.40   0.0   38.9   1.3e-07 !   -
+tRNA-sample9/66515-66583      -         tRNA                 RF00005    cm        1       71    66516    66582      +    no    1 0.57   0.0   30.9   2.3e-05 !   -
+tRNA-sample10/32353-32425     -         tRNA                 RF00005    cm        1       71    59443    59368      -    no    1 0.30   0.1   21.0     0.014 ?   -
+Plant_SRP-sample2/44686-44961 -         tRNA                 RF00005    cm        1       71    42608    42527      -    no    1 0.34   0.1   20.0     0.026 ?   -
+snR75-sample7/20908-21006     -         tRNA                 RF00005    cm        1       71    86357    86283      -    no    1 0.35   0.0   15.8       0.4 ?   -
+Vault-sample2/67800-67897     -         tRNA                 RF00005    cm        1       71    89308    89250      -    no    1 0.34   0.0   15.0      0.67 ?   -
+tRNA-sample8/12834-12904      -         tRNA                 RF00005    cm        1       71    46204    46146      -    no    1 0.19   3.9   14.6      0.83 ?   -
+Plant_SRP-sample4/64689-64987 -         tRNA                 RF00005    cm        1       71    97544    97488      -    no    1 0.21   3.1   12.7       2.8 ?   -
+Plant_SRP-sample5/23875-24163 -         tRNA                 RF00005    cm        1       71    93227    93282      +    no    1 0.27   0.0   12.1       4.2 ?   -
+Plant_SRP-sample2/44686-44961 -         tRNA                 RF00005    cm        1       71    95590    95544      -    no    1 0.38   0.0   11.4       6.5 ?   -
+snR75-sample7/20908-21006     -         tRNA                 RF00005    cm        1       71    14188    14138      -    no    1 0.18   3.3   10.9       9.3 ?   -
+Vault-sample9/3488-3580       -         Vault                RF00006    cm        1      100     3488     3580      +    no    1 0.59   0.0   64.5   1.2e-14 !   -
+Vault-sample1/65296-65391     -         Vault                RF00006    cm        1      100    65296    65391      +    no    1 0.60   0.0   53.1   1.7e-11 !   -
+Vault-sample7/44846-44944     -         Vault                RF00006    cm        1      100    44845    44944      +    no    1 0.57   0.0   44.9   3.1e-09 !   -
+Vault-sample8/3374-3475       -         Vault                RF00006    cm        1      100     3374     3475      +    no    1 0.50   0.0   44.4   4.5e-09 !   -
+Vault-sample6/67562-67667     -         Vault                RF00006    cm        1      100    67562    67667      +    no    1 0.53   0.0   43.7   6.8e-09 !   -
+Vault-sample4/14119-14217     -         Vault                RF00006    cm        1      100    14119    14217      +    no    1 0.48   0.0   40.5   5.4e-08 !   -
+Vault-sample2/67800-67897     -         Vault                RF00006    cm        1      100    67797    67898      +    no    1 0.44   0.0   39.2   1.2e-07 !   -
+Vault-sample5/63770-63875     -         Vault                RF00006    cm        1      100    63770    63875      +    no    1 0.43   0.0   33.3   5.1e-06 !   -
+Vault-sample10/98479-98573    -         Vault                RF00006    cm        1      100    98479    98573      +    no    1 0.56   0.0   32.7   7.5e-06 !   -
+Vault-sample3/29766-29882     -         Vault                RF00006    cm        1      100    29766    29882      +    no    1 0.58   0.0   28.7   9.6e-05 !   -
+Plant_SRP-sample4/64689-64987 -         Vault                RF00006    cm        1      100    95349    95414      +    no    1 0.74   0.1   14.9      0.63 ?   -
+snR75-sample4/79295-79389     -         Vault                RF00006    cm        1      100    65874    65760      -    no    1 0.29   0.9   12.7       2.5 ?   -
+Plant_SRP-sample6/22548-22843 -         Vault                RF00006    cm        1      100    87654    87579      -    no    1 0.66   0.0   12.4         3 ?   -
+Vault-sample5/63770-63875     -         Vault                RF00006    cm        1      100    68949    68920      -    no    1 0.77   0.3   12.1       3.6 ?   -
+tRNA-sample4/62081-62154      -         Vault                RF00006    cm        1      100     6784     6901      +    no    1 0.31   0.5   11.4       5.7 ?   -
+snR75-sample2/15305-15390     -         Vault                RF00006    cm        1      100    36271    36331      +    no    1 0.75   0.4   11.3       6.1 ?   -
+tRNA-sample7/51572-51643      -         Vault                RF00006    cm       20       78    52836    52884      +    no    1 0.47   0.0   11.3       6.1 ?   -
+snR75-sample3/6661-6749    -         snR75                RF01185   hmm        6       86     6664     6747      +     -    6 0.36   0.1   50.3   8.6e-14 !   -
+snR75-sample9/11431-11517  -         snR75                RF01185   hmm        9       87    11438    11516      +     -    6 0.44   0.0   40.3   1.2e-10 !   -
+snR75-sample10/73027-73114 -         snR75                RF01185   hmm       16       84    73040    73110      +     -    6 0.45   0.0   38.7   3.6e-10 !   -
+snR75-sample1/36477-36562  -         snR75                RF01185   hmm        8       87    36482    36561      +     -    6 0.29   0.1   36.2   2.2e-09 !   -
+snR75-sample2/15305-15390  -         snR75                RF01185   hmm        4       87    15305    15389      +     -    6 0.41   0.0   29.1   3.7e-07 !   -
+snR75-sample5/40789-40890  -         snR75                RF01185   hmm        7       81    40810    40884      +     -    6 0.39   0.0   28.7   4.8e-07 !   -
+snR75-sample8/31516-31603  -         snR75                RF01185   hmm       13       86    31527    31601      +     -    6 0.43   0.0   27.1   1.6e-06 !   -
+snR75-sample4/79295-79389  -         snR75                RF01185   hmm       18       87    79309    79383      +     -    6 0.45   0.0   24.1   1.3e-05 !   -
+snR75-sample3/6661-6749    -         snR75                RF01185   hmm       20       81    10149    10203      +     -    6 0.35   0.0   13.0     0.039 ?   -
+Vault-sample7/44846-44944  -         snR75                RF01185   hmm       14       70    73609    73553      -     -    6 0.30   0.2   11.8     0.092 ?   -
+Plant_SRP-sample4/64689-64987 -         Plant_SRP            RF01855    cm        1      305    64688    64988      +    no    1 0.53   0.0  164.8   1.2e-48 !   -
+Plant_SRP-sample7/90088-90373 -         Plant_SRP            RF01855    cm        1      305    90088    90373      +    no    1 0.58   0.0  141.4   1.8e-41 !   -
+Plant_SRP-sample8/35656-35962 -         Plant_SRP            RF01855    cm        1      305    35656    35962      +    no    1 0.47   0.0  137.5   2.8e-40 !   -
+Plant_SRP-sample5/23875-24163 -         Plant_SRP            RF01855    cm        1      305    23875    24163      +    no    1 0.54   0.0  135.6     1e-39 !   -
+Plant_SRP-sample10/2398-2695  -         Plant_SRP            RF01855    cm        1      305     2398     2695      +    no    1 0.60   0.0  131.7   1.7e-38 !   -
+Plant_SRP-sample9/34410-34697 -         Plant_SRP            RF01855    cm        1      305    34410    34697      +    no    1 0.51   0.0  128.6   1.5e-37 !   -
+Plant_SRP-sample3/83496-83782 -         Plant_SRP            RF01855    cm        1      305    83496    83782      +    no    1 0.51   0.0  126.2   8.5e-37 !   -
+Plant_SRP-sample2/44686-44961 -         Plant_SRP            RF01855    cm        1      305    44683    44961      +    no    1 0.53   0.0  126.1   9.1e-37 !   -
+Plant_SRP-sample1/62689-62991 -         Plant_SRP            RF01855    cm        1      305    62689    62991      +    no    1 0.55   0.0  113.6     6e-33 !   -
+Plant_SRP-sample6/22548-22843 -         Plant_SRP            RF01855    cm        1      305    22548    22843      +    no    1 0.49   0.0  112.0   1.9e-32 !   -
+snR75-sample2/15305-15390     -         Plant_SRP            RF01855    cm      192      206    87182    87168      -    no    1 0.60   0.0    7.3       2.9 ?   -
+tRNA-sample2/53622-53692      -         tRNA-Sec             RF01852    cm        1       91    53621    53692      +    no    1 0.57   0.0   24.5    0.0033 !   -
+tRNA-sample10/32353-32425     -         tRNA-Sec             RF01852    cm        1       91     4502     4580      +    no    1 0.73   0.4   18.8       0.1 ?   -
+tRNA-sample8/12834-12904      -         tRNA-Sec             RF01852    cm        1       91    76361    76288      -    no    1 0.61   0.0   17.0       0.3 ?   -
+Vault-sample5/63770-63875     -         tRNA-Sec             RF01852    cm        1       91    43700    43768      +    no    1 0.75   0.3   15.1      0.96 ?   -
+tRNA-sample8/12834-12904      -         tRNA-Sec             RF01852    cm        1       91    56783    56858      +    no    1 0.47   0.0   14.2       1.6 ?   -
+Vault-sample9/3488-3580       -         tRNA-Sec             RF01852    cm        1       91    68870    68944      +    no    1 0.68   0.0   13.5       2.4 ?   -
+Plant_SRP-sample2/44686-44961 -         tRNA-Sec             RF01852    cm        1       91     9137     9218      +    no    1 0.66   0.0   13.2       2.9 ?   -
+Vault-sample7/44846-44944     -         tRNA-Sec             RF01852    cm        1       91    62560    62478      -    no    1 0.60   0.0   13.0       3.3 ?   -
+Plant_SRP-sample9/34410-34697 -         tRNA-Sec             RF01852    cm        1       91    54203    54285      +    no    1 0.72   0.1   12.9       3.4 ?   -
+snR75-sample1/36477-36562     -         tRNA-Sec             RF01852    cm        1       91    26671    26583      -    no    1 0.74   1.8   12.3       4.8 ?   -
+Plant_SRP-sample3/83496-83782 -         tRNA-Sec             RF01852    cm        1       91    83716    83834      +    no    1 0.50   0.0   11.8       6.8 ?   -
+snR75-sample2/15305-15390     -         tRNA-Sec             RF01852    cm        1       91     9289     9368      +    no    1 0.69   0.0   11.7       6.9 ?   -
+tRNA-sample10/32353-32425     -         tRNA-Sec             RF01852    cm        1       91     9739     9661      -    no    1 0.70   0.0   11.7       7.1 ?   -
+snR75-sample1/36477-36562     -         tRNA-Sec             RF01852    cm        1       91    99508    99565      +    no    1 0.71   0.0   11.3       8.9 ?   -
+#
+# Program:         cmsearch
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SEARCH
+# Query file:      src/pyinfernal/tests/data/cms/5.c.cm
+# Target file:     src/pyinfernal/tests/data/seqs/100k-4.fa
+# Option settings: cmsearch -Z 1 --tblout src/pyinfernal/tests/data/tables/5c.Z1.tbl src/pyinfernal/tests/data/cms/5.c.cm src/pyinfernal/tests/data/seqs/100k-4.fa 
+# Current dir:     /home/althonos/Code/pyinfernal
+# Date:            Mon Jan 19 15:59:56 2026
+# [ok]
