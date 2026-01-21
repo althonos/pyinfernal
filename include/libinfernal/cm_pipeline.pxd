@@ -13,19 +13,12 @@ from libhmmer.p7_hmm cimport P7_HMM
 from libhmmer.p7_gmx cimport P7_GMX
 from libhmmer.p7_profile cimport P7_PROFILE
 from libhmmer.p7_scoredata cimport P7_SCOREDATA
+from libhmmer.impl.p7_omx cimport P7_OMX
+from libhmmer.impl.p7_oprofile cimport P7_OPROFILE, P7_OM_BLOCK
 from libinfernal.cm cimport CM_t
 from libinfernal.cm_file cimport CM_FILE
 from libinfernal.cm_tophits cimport CM_TOPHITS
 
-if HMMER_IMPL == "VMX":
-    from libhmmer.impl_vmx.p7_omx cimport P7_OM_BLOCK, P7_OMX
-    from libhmmer.impl_vmx.p7_oprofile cimport P7_OPROFILE
-elif HMMER_IMPL == "SSE":
-    from libhmmer.impl_sse.p7_omx cimport P7_OM_BLOCK, P7_OMX
-    from libhmmer.impl_sse.p7_oprofile cimport P7_OPROFILE
-elif HMMER_IMPL == "NEON":
-    from libhmmer.impl_neon.p7_omx cimport P7_OM_BLOCK, P7_OMX
-    from libhmmer.impl_neon.p7_oprofile cimport P7_OPROFILE
 
 cdef extern from "infernal.h" nogil:
 
