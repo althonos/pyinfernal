@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pyinfernal"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 description = "Cython bindings and Python interface to Infernal."
 readme = "README.md"
 requires-python = ">=3.7"
@@ -65,7 +65,7 @@ sdist.exclude = [
     "vendor/infernal/Manuscripts",
     "vendor/infernal/rmark",
     "vendor/infernal/tutorial",
-    "vendor/infernal/testsuite",
+    #"vendor/infernal/testsuite",
     "vendor/**/*.ai",
     "vendor/**/*.pl",
 ]
