@@ -15,6 +15,8 @@ cimport libeasel
 cimport libeasel.alphabet
 cimport libeasel.vec
 cimport libeasel.fileparser
+cimport libhmmer.impl.p7_oprofile
+cimport libhmmer.impl.p7_omx
 cimport libhmmer.p7_bg
 cimport libhmmer.p7_profile
 cimport libhmmer.p7_hmm
@@ -36,11 +38,12 @@ from libeasel.alphabet cimport ESL_ALPHABET
 from libeasel.fileparser cimport ESL_FILEPARSER
 from libeasel.sq cimport ESL_SQ
 from libeasel.random cimport ESL_RANDOMNESS
+from libhmmer.impl.p7_oprofile cimport P7_OPROFILE, P7_OM_BLOCK
+from libhmmer.logsum cimport p7_FLogsumInit
 from libhmmer.p7_hmm cimport P7_HMM
 from libhmmer.p7_hmmfile cimport P7_HMMFILE
 from libhmmer.p7_scoredata cimport P7_SCOREDATA
 from libhmmer.p7_gmx cimport P7_GMX
-from libhmmer.logsum cimport p7_FLogsumInit
 from libinfernal cimport CM_p7_NEVPARAM
 from libinfernal.cm_file cimport CM_FILE, cm_file_formats_e
 from libinfernal.cm_pipeline cimport CM_PIPELINE, CM_PLI_ACCT, cm_zsetby_e, cm_pipemodes_e, cm_newmodelmodes_e
@@ -50,23 +53,9 @@ from libinfernal.cmsearch cimport WORKER_INFO
 from libinfernal.logsum cimport FLogsumInit, init_ilogsum
 from libinfernal.cm_alidisplay cimport CM_ALIDISPLAY
 
-if HMMER_IMPL == "VMX":
-    from libhmmer.impl_vmx.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
-    from libhmmer.impl_vmx.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
-elif HMMER_IMPL == "SSE":
-    from libhmmer.impl_sse.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
-    from libhmmer.impl_sse.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
-elif HMMER_IMPL == "NEON":
-    from libhmmer.impl_neon.p7_omx cimport P7_OM_BLOCK, p7_omx_Reuse
-    from libhmmer.impl_neon.p7_oprofile cimport P7_OPROFILE, p7_oprofile_Create, p7_oprofile_Convert
-
-if TARGET_SYSTEM == "Linux":
-    from .fileobj.linux cimport fileobj_linux_open as fopen_obj
-elif TARGET_SYSTEM == "Darwin" or TARGET_SYSTEM.endswith("BSD"):
-    from .fileobj.bsd cimport fileobj_bsd_open as fopen_obj
-
 cimport pyhmmer.easel
 cimport pyhmmer.plan7
+from pyhmmer.platform cimport _FileobjReader, _FileobjWriter
 from pyhmmer.easel cimport (
     Alphabet,
     DigitalSequenceBlock,
@@ -414,141 +403,166 @@ cdef class CMFile:
 
     """
 
-    cdef CM_FILE* _fp
-    cdef str      _name
-    cdef Alphabet _alphabet
-    cdef ESL_ALPHABET* _abc
+    cdef          CM_FILE*       _fp
+    cdef          ESL_ALPHABET*  _abc
+    cdef          str            _name
+    cdef readonly _FileobjReader _reader
+    cdef readonly object         _file
+    cdef readonly Alphabet       alphabet
 
     # --- Constructor --------------------------------------------------------
 
-    @staticmethod
-    cdef CM_FILE* _open_fileobj(object fh) except *:
+    cdef int _open_fileobj(self, object fh) except 1:
         cdef int         status
-        cdef char*       token
-        cdef int         token_len
-        cdef bytes       filename
+        cdef str         frepr
+        cdef char*       token     = NULL
+        cdef int         token_len = -1
+        cdef const char* fname     = NULL
+        cdef ssize_t     flen      = -1
         cdef object      fh_       = fh
-        cdef CM_FILE*    cmfp      = NULL
 
         # use buffered IO to be able to peek efficiently
         if not hasattr(fh, "peek"):
             fh_ = io.BufferedReader(fh)
 
+        # check if the file is in binary format before
+        # we actually open it with fopen_obj, otherwise
+        # the Windows background thread may start piping
+        # and we cannot peek without a potential race
+        # condition
+        magic_bytes = fh_.peek(4)[:4]
+        if not isinstance(magic_bytes, bytes):
+            ty = type(magic_bytes).__name__
+            raise TypeError("expected bytes, found {}".format(ty))
+        magic = int.from_bytes(magic_bytes, sys.byteorder)
+        if magic in CM_FILE_MAGIC:
+            # NB: the file must be advanced, since read_bin30hmm assumes
+            #     the binary tag has been skipped already, buf we only peeked
+            #     so far; note that we advance without seeking or rewinding.
+            fh_.read(4)
+
         # attempt to allocate space for the P7_HMMFILE
-        cmfp = <CM_FILE*> malloc(sizeof(CM_FILE))
-        if cmfp == NULL:
+        self._fp = <CM_FILE*> malloc(sizeof(CM_FILE))
+        if self._fp == NULL:
+            self.close()
             raise AllocationError("CM_FILE", sizeof(CM_FILE))
 
+        # create the reader
+        self._reader = _FileobjReader(fh_)
+
         # store options
-        cmfp.f            = fopen_obj(fh_, "r")
-        cmfp.do_stdin     = False
-        cmfp.do_gzip      = True
-        cmfp.newly_opened = True
-        cmfp.is_pressed   = False
-        cmfp.is_binary    = False
+        self._fp.f            = self._reader.file
+        self._fp.do_stdin     = False
+        self._fp.do_gzip      = True
+        self._fp.newly_opened = True
+        self._fp.is_pressed   = False
+        self._fp.is_binary    = False
 
         # set pointers as NULL for now
-        cmfp.parser    = NULL
-        cmfp.efp       = NULL
-        cmfp.ffp       = NULL
-        cmfp.hfp       = NULL
-        cmfp.pfp       = NULL
-        cmfp.ssi       = NULL
-        cmfp.fname     = NULL
-        cmfp.errbuf[0] = b"\0"
+        self._fp.parser    = NULL
+        self._fp.efp       = NULL
+        self._fp.ffp       = NULL
+        self._fp.hfp       = NULL
+        self._fp.pfp       = NULL
+        self._fp.ssi       = NULL
+        self._fp.fname     = NULL
+        self._fp.errbuf[0] = b"\0"
 
         # set up the HMM file
-        cmfp.hfp = <P7_HMMFILE*> malloc(sizeof(P7_HMMFILE))
-        if cmfp.hfp == NULL:
-            libinfernal.cm_file.cm_file_Close(cmfp)
+        self._fp.hfp = <P7_HMMFILE*> malloc(sizeof(P7_HMMFILE))
+        if self._fp.hfp == NULL:
+            self.close()
             raise AllocationError("P7_HMMFILE", sizeof(P7_HMMFILE))
-        cmfp.hfp.do_gzip      = cmfp.do_gzip
-        cmfp.hfp.do_stdin     = cmfp.do_stdin
-        cmfp.hfp.newly_opened = True
-        cmfp.hfp.is_pressed   = cmfp.is_pressed
-        cmfp.hfp.parser       = NULL
-        cmfp.hfp.efp          = NULL
-        cmfp.hfp.ffp          = NULL
-        cmfp.hfp.pfp          = NULL
-        cmfp.hfp.ssi          = NULL
-        cmfp.hfp.fname        = NULL
-        cmfp.hfp.errbuf[0]    = '\0'
+        self._fp.hfp.do_gzip      = self._fp.do_gzip
+        self._fp.hfp.do_stdin     = self._fp.do_stdin
+        self._fp.hfp.newly_opened = True
+        self._fp.hfp.is_pressed   = self._fp.is_pressed
+        self._fp.hfp.parser       = NULL
+        self._fp.hfp.efp          = NULL
+        self._fp.hfp.ffp          = NULL
+        self._fp.hfp.pfp          = NULL
+        self._fp.hfp.ssi          = NULL
+        self._fp.hfp.fname        = NULL
+        self._fp.hfp.errbuf[0]    = '\0'
 
         # NOTE(@althonos): Because we set `do_gzip=True`, the parser will now
         #                  expect a lot of things to be available only through
         #                  streams, and won't attempt to e.g. `seek` the
         #                  internal file object (or at least not as often).
-        cmfp.hfp.f            = cmfp.f
+        self._fp.hfp.f            = self._fp.f
 
         # extract the filename if the file handle has a `name` attribute
-        if getattr(fh, "name", None) is not None:
-            filename = fh.name.encode()
-            cmfp.fname = strdup(filename)
-            if cmfp.fname == NULL:
-                libinfernal.cm_file.cm_file_Close(cmfp)
-                raise AllocationError("char", sizeof(char), strlen(filename))
-            cmfp.hfp.fname = strdup(filename)
-            if cmfp.hfp.fname == NULL:
-                libinfernal.cm_file.cm_file_Close(cmfp)
-                raise AllocationError("char", sizeof(char), strlen(filename))
+        frepr = getattr(fh, "name", repr(fh))
+        fname = PyUnicode_AsUTF8AndSize(frepr, &flen)
+        status = libeasel.esl_strdup(fname, flen, &self._fp.fname)
+        if status == libeasel.eslEMEM:
+            self.close()
+            raise AllocationError("char", sizeof(char), flen)
+        elif status != libeasel.eslOK:
+            self.close()
+            raise UnexpectedError(status, "esl_strdup")
+        status = libeasel.esl_strdup(fname, flen, &self._fp.fname)
+        if status == libeasel.eslEMEM:
+            self.close()
+            raise AllocationError("char", sizeof(char), flen)
+        elif status != libeasel.eslOK:
+            self.close()
+            raise UnexpectedError(status, "esl_strdup")
 
         # check if the parser is in binary format,
-        magic = int.from_bytes(fh_.peek(4)[:4], sys.byteorder)
         if magic in CM_FILE_MAGIC:
-            cmfp.format = CM_FILE_MAGIC[magic]
-            cmfp.parser = libinfernal.cm_file.read_bin_1p1_cm
-            cmfp.is_binary = True
-            # NB: the file must be advanced, since read_bin_1p1_cm assumes
-            #     the binary tag has been skipped already, buf we only peeked
-            #     so far; note that we advance without seeking or rewinding.
-            fh_.read(4)
-            return cmfp
+            self._fp.format = CM_FILE_MAGIC[magic]
+            self._fp.parser = libinfernal.cm_file.read_bin_1p1_cm
+            self._fp.is_binary = True
+            return 0
         elif (magic & 0x80000000) != 0:
+            self.close()
             raise ValueError(f"Format tag appears binary, but unrecognized: 0x{magic:08x}")
 
         # create and configure the file parser
-        cmfp.efp = libeasel.fileparser.esl_fileparser_Create(cmfp.f)
-        if cmfp.efp == NULL:
-            libinfernal.cm_file.cm_file_Close(cmfp)
+        self._fp.efp = libeasel.fileparser.esl_fileparser_Create(self._fp.f)
+        if self._fp.efp == NULL:
+            self.close()
             raise AllocationError("ESL_FILEPARSER", sizeof(ESL_FILEPARSER))
-        status = libeasel.fileparser.esl_fileparser_SetCommentChar(cmfp.efp, b"#")
+        status = libeasel.fileparser.esl_fileparser_SetCommentChar(self._fp.efp, b"#")
         if status != libeasel.eslOK:
-            libinfernal.cm_file.cm_file_Close(cmfp)
+            self.close()
             raise UnexpectedError(status, "esl_fileparser_SetCommentChar")
 
         # get the magic string at the beginning
-        status = libeasel.fileparser.esl_fileparser_NextLine(cmfp.efp)
+        status = libeasel.fileparser.esl_fileparser_NextLine(self._fp.efp)
         if status == libeasel.eslEOF:
+            self.close()
             raise EOFError("CM file is empty")
         elif status != libeasel.eslOK:
-            libinfernal.cm_file.cm_file_Close(cmfp)
+            self.close()
             raise UnexpectedError(status, "esl_fileparser_NextLine")
-        status = libeasel.fileparser.esl_fileparser_GetToken(cmfp.efp, &token, &token_len)
+        status = libeasel.fileparser.esl_fileparser_GetToken(self._fp.efp, &token, &token_len)
         if status != libeasel.eslOK:
-            libinfernal.cm_file.cm_file_Close(cmfp)
+            self.close()
             raise UnexpectedError(status, "esl_fileparser_GetToken")
 
         # detect the format
         if token == b"INFERNAL1/a":
-            cmfp.parser = libinfernal.cm_file.read_asc_1p1_cm
-            cmfp.format = cm_file_formats_e.CM_FILE_1a
+            self._fp.parser = libinfernal.cm_file.read_asc_1p1_cm
+            self._fp.format = cm_file_formats_e.CM_FILE_1a
         elif token == b"INFERNAL-1":
-            cmfp.parser = libinfernal.cm_file.read_asc_1p0_cm
-            cmfp.format = cm_file_formats_e.CM_FILE_1
+            self._fp.parser = libinfernal.cm_file.read_asc_1p0_cm
+            self._fp.format = cm_file_formats_e.CM_FILE_1
 
         # check the format tag was recognized
-        if cmfp.parser == NULL:
+        if self._fp.parser == NULL:
             text = token.decode("utf-8", "replace")
-            libinfernal.cm_file.cm_file_Close(cmfp)
+            self.close()
             raise ValueError("Unrecognized format tag in CM file: {!r}".format(text))
 
-        # return the finalized CM_FILE*
-        return cmfp
+        # zero on success
+        return 0
 
     # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self):
-        self._alphabet = None
+        self.alphabet = None
         self._abc = NULL
         self._fp = NULL
         self._name = None
@@ -584,15 +598,16 @@ cdef class CMFile:
         try:
             fspath = os.fsencode(file)
             self._name = os.fsdecode(fspath)
+        except TypeError as e:
+            self._open_fileobj(file)
+            status   = libeasel.eslOK
+        else:
             if db:
                 function = "cm_file_Open"
                 status = libinfernal.cm_file.cm_file_Open(fspath, NULL, True, &self._fp, errbuf)
             else:
                 function = "cm_file_OpenNoDb"
                 status = libinfernal.cm_file.cm_file_OpenNoDB(fspath, NULL, True, &self._fp, errbuf)
-        except TypeError as e:
-            self._fp = CMFile._open_fileobj(file)
-            status   = libeasel.eslOK
 
         if status == libeasel.eslENOTFOUND:
             raise FileNotFoundError(errno.ENOENT, f"No such file or directory: {file!r}")
@@ -607,10 +622,10 @@ cdef class CMFile:
             raise UnexpectedError(status, function)
 
         if alphabet is None:
-            self._alphabet = None
+            self.alphabet = None
             self._abc = NULL
         else:
-            self._alphabet = alphabet
+            self.alphabet = alphabet
             self._abc = alphabet._abc
 
     def __dealloc__(self):
@@ -681,13 +696,14 @@ cdef class CMFile:
             raise ValueError("I/O operation on closed file.")
 
         # don't run in *nogil* because the file may call a file-like handle
-        status = libinfernal.cm_file.cm_file_Read(self._fp, True, &self._abc, &cm)
+        with nogil:
+            status = libinfernal.cm_file.cm_file_Read(self._fp, True, &self._abc, &cm)
 
-        if self._alphabet is None and self._abc != NULL:
-            self._alphabet = Alphabet.from_ptr(self._abc)
+        if self.alphabet is None and self._abc != NULL:
+            self.alphabet = Alphabet.from_ptr(self._abc)
 
         if status == libeasel.eslOK:
-            return CM.from_ptr(cm, self._alphabet)
+            return CM.from_ptr(cm, self.alphabet)
         elif status == libeasel.eslEOF:
             return None
         elif status == libeasel.eslEMEM:
@@ -697,7 +713,7 @@ cdef class CMFile:
         elif status == libeasel.eslEFORMAT:
             raise ValueError("Invalid format in file: {}".format(self._fp.errbuf.decode("utf-8", "replace")))
         elif status == libeasel.eslEINCOMPAT:
-            raise AlphabetMismatch(self._alphabet)
+            raise AlphabetMismatch(self.alphabet)
         else:
             _reraise_error()
             raise UnexpectedError(status, "p7_hmmfile_Read")
@@ -714,6 +730,10 @@ cdef class CMFile:
             True
 
         """
+        if self._reader:
+            self._reader.close()
+            self._reader = None
+            self._fp.f = self._fp.hfp.f = NULL # reader closed the file
         if self._fp:
             libinfernal.cm_file.cm_file_Close(self._fp)
             self._fp = NULL
@@ -1042,10 +1062,10 @@ cdef class Pipeline:
         with nogil:
             # reinitialize the dynamic programming matrices
             # (no status check, infallible)
-            p7_omx_Reuse(self._pli.oxf)
-            p7_omx_Reuse(self._pli.oxb)
-            p7_omx_Reuse(self._pli.fwd)
-            p7_omx_Reuse(self._pli.bck)
+            libhmmer.impl.p7_omx.p7_omx_Reuse(self._pli.oxf)
+            libhmmer.impl.p7_omx.p7_omx_Reuse(self._pli.oxb)
+            libhmmer.impl.p7_omx.p7_omx_Reuse(self._pli.fwd)
+            libhmmer.impl.p7_omx.p7_omx_Reuse(self._pli.bck)
             libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gxf)
             libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gxb)
             libhmmer.p7_gmx.p7_gmx_Reuse(self._pli.gfwd)
@@ -1246,20 +1266,20 @@ cdef class Pipeline:
                 if info.pli.do_top:
                     prv_pli_ntophits = info.th.N
                     status = libinfernal.cm_pipeline.cm_Pipeline(
-                        info.pli, 
-                        info.cm.offset, 
-                        info.om, 
-                        info.bg, 
-                        info.p7_evparam, 
-                        info.msvdata, 
-                        sq[t], 
-                        info.th, 
+                        info.pli,
+                        info.cm.offset,
+                        info.om,
+                        info.bg,
+                        info.p7_evparam,
+                        info.msvdata,
+                        sq[t],
+                        info.th,
                         False, # not reverse-complement
-                        NULL, 
-                        &info.gm, 
-                        &info.Rgm, 
-                        &info.Lgm, 
-                        &info.Tgm, 
+                        NULL,
+                        &info.gm,
+                        &info.Rgm,
+                        &info.Lgm,
+                        &info.Tgm,
                         &info.cm
                     )
                     if status != libeasel.eslOK:
@@ -1277,7 +1297,7 @@ cdef class Pipeline:
                         if copy == NULL:
                             raise AllocationError("ESL_SQ", sizeof(ESL_SQ))
                     # copy sequence
-                    # FIXME: maybe we could avoid that if we used locks in the 
+                    # FIXME: maybe we could avoid that if we used locks in the
                     #        right place, but for now needed as the same
                     #        DigitalSequenceBlock may be shared between threads
                     #        and cause race conditions
@@ -1291,20 +1311,20 @@ cdef class Pipeline:
 
                     prv_pli_ntophits = info.th.N
                     status = libinfernal.cm_pipeline.cm_Pipeline(
-                        info.pli, 
-                        info.cm.offset, 
-                        info.om, 
-                        info.bg, 
-                        info.p7_evparam, 
-                        info.msvdata, 
-                        copy, 
-                        info.th, 
+                        info.pli,
+                        info.cm.offset,
+                        info.om,
+                        info.bg,
+                        info.p7_evparam,
+                        info.msvdata,
+                        copy,
+                        info.th,
                         True, # reverse-complement
-                        NULL, 
-                        &info.gm, 
-                        &info.Rgm, 
-                        &info.Lgm, 
-                        &info.Tgm, 
+                        NULL,
+                        &info.gm,
+                        &info.Rgm,
+                        &info.Lgm,
+                        &info.Tgm,
                         &info.cm
                     )
                     if status != libeasel.eslOK:
@@ -1441,26 +1461,25 @@ cdef class Alignment:
     def __str__(self):
         assert self._ad != NULL
 
-        cdef int    status
-        cdef object buffer = io.BytesIO()
-        cdef FILE*  fp     = fopen_obj(buffer, "w")
+        cdef _FileobjWriter fw
+        cdef int            status
+        cdef object         buffer = io.BytesIO()
 
-        try:
-            status = libinfernal.cm_alidisplay.cm_alidisplay_Print(
-                fp,
-                self._ad,
-                0,
-                -1,
-                False,
-            )
-            if status == libeasel.eslEWRITE:
-                raise OSError("Failed to write alignment")
-            elif status != libeasel.eslOK:
-                raise UnexpectedError(status, "cm_alidisplay_Print")
-        finally:
-            fclose(fp)
+        with _FileobjWriter(buffer) as fw:
+            with nogil:
+                status = libinfernal.cm_alidisplay.cm_alidisplay_Print(
+                    fw.file,
+                    self._ad,
+                    0,
+                    -1,
+                    False,
+                )
+        if status == libeasel.eslEWRITE:
+            raise OSError("Failed to write alignment")
+        elif status != libeasel.eslOK:
+            raise UnexpectedError(status, "cm_alidisplay_Print")
 
-        return buffer.getvalue().decode("ascii")
+        return buffer.getvalue().decode("utf-8")
 
     def __sizeof__(self):
         assert self._ad != NULL
@@ -1866,7 +1885,7 @@ cdef class TopHits:
     #     if status != libeasel.eslOK:
     #         raise UnexpectedError(status, "p7_tophits_SortBySeqidxAndAlipos")
     #     return 0
-    
+
     cdef void _check_threshold_parameters(self, const CM_PIPELINE* other) except *:
         # check comparison counters are consistent
         if self._pli.Z_setby != other.Z_setby:
@@ -1931,19 +1950,19 @@ cdef class TopHits:
                     raise AllocationError("CM_ALIDISPLAY", sizeof(CM_ALIDISPLAY))
                 # copy name, accession, description
                 if self._th.hit[i].name == NULL:
-                    copy._th.hit[i].name = NULL 
+                    copy._th.hit[i].name = NULL
                 else:
                     copy._th.hit[i].name = strdup(self._th.hit[i].name)
                     if copy._th.hit[i].name == NULL:
                         raise AllocationError("char", sizeof(char), strlen(self._th.hit[i].name))
                 if self._th.hit[i].acc == NULL:
-                    copy._th.hit[i].acc = NULL 
+                    copy._th.hit[i].acc = NULL
                 else:
                     copy._th.hit[i].acc = strdup(self._th.hit[i].acc)
                     if copy._th.hit[i].acc == NULL:
                         raise AllocationError("char", sizeof(char), strlen(self._th.hit[i].acc))
                 if self._th.hit[i].desc == NULL:
-                    copy._th.hit[i].desc     = NULL 
+                    copy._th.hit[i].desc     = NULL
                 else:
                     copy._th.hit[i].desc = strdup(self._th.hit[i].desc)
                     if copy._th.hit[i].desc == NULL:
@@ -1968,13 +1987,13 @@ cdef class TopHits:
                 when writing in the ``pfam`` format.
 
         """
-        cdef FILE* file
-        cdef str   fname
-        cdef int   status
-        cdef str         sname  = None
-        cdef str         sacc   = None
-        cdef const char* qname  = NULL
-        cdef const char* qacc   = NULL
+        cdef _FileobjWriter fw
+        cdef str            fname
+        cdef int            status
+        cdef str            sname  = None
+        cdef str            sacc   = None
+        cdef const char*    qname  = NULL
+        cdef const char*    qacc   = NULL
 
         if isinstance(self._query, CM):
             qname = (<CM> self._query)._cm.name
@@ -1987,27 +2006,24 @@ cdef class TopHits:
                 sacc = self._query.accession
                 qacc = self._query.accession
 
-        file = fopen_obj(fh, "w")
-        try:
+        with _FileobjWriter(fh) as fw:
             if format == "3":
                 fname = "cm_tophits_TabularTargets3"
-                status = libinfernal.cm_tophits.cm_tophits_TabularTargets3(
-                    file,
-                    <char*> qname,
-                    <char*> qacc,
-                    self._th,
-                    &self._pli,
-                    header
-                )
+                with nogil:
+                    status = libinfernal.cm_tophits.cm_tophits_TabularTargets3(
+                        fw.file,
+                        <char*> qname,
+                        <char*> qacc,
+                        self._th,
+                        &self._pli,
+                        header
+                    )
             else:
                 raise InvalidParameter("format", format, choices=["3"])
             if status != libeasel.eslOK:
                 _reraise_error()
                 raise UnexpectedError(status, fname)
-        finally:
-            fclose(file)
-            del sname
-            del sacc
+
 
     def merge(self, *others):
         """Concatenate the hits from this instance and ``others``.
