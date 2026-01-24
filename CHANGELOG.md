@@ -6,8 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/althonos/pyinfernal/compare/2cce19c...HEAD
+[Unreleased]: https://github.com/althonos/pyinfernal/compare/v0.1.0...HEAD
 
-## [v0.1.0-alpha.1] - 2026-01-16
+## [v0.1.0] - 2026-01-24	
+[Unreleased]: https://github.com/althonos/pyinfernal/compare/2cce19c...v0.1.0
 
 Initial release.
