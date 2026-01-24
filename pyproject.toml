@@ -58,6 +58,7 @@ wheel.py-api = "cp312"
 editable.rebuild = true
 editable.verbose = false
 sdist.exclude = [
+    "backup",
     "build",
     "benches",
     "docs",
@@ -66,7 +67,6 @@ sdist.exclude = [
     "vendor/infernal/Manuscripts",
     "vendor/infernal/rmark",
     "vendor/infernal/tutorial",
-    #"vendor/infernal/testsuite",
     "vendor/**/*.ai",
     "vendor/**/*.pl",
 ]
