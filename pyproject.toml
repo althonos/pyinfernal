@@ -98,7 +98,9 @@ plugins = ["Cython.Coverage"]
 build-verbosity = 1
 test-command = "python -m unittest pyinfernal.tests -v"
 test-extras = ["test"]
-repair-wheel-command = ['cp {wheel} -t {dest_dir}']
+
+[tool.cibuildwheel.linux]
+repair-wheel-command = ['auditwheel repair -w {dest_dir} --exclude liblibhmmer.so --exclude liblibeasel.so {wheel}']
 
 [tool.coverage.report]
 include = ["src/pyinfernal/*"]
