@@ -1,0 +1,17 @@
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+NZ_JBNWEP010000004.1 -         FinP                 RF00107    cm        1       76    14366    14288      -    no    1 0.51   0.0   96.8   4.3e-22 !   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+NZ_JBNWEP010000004.1 -         FinP                 RF00107    cm        1       76    14274    14334      +    no    1 0.48   0.0   22.5    0.0011 !   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+NZ_JBNWEP010000004.1 -         FinP                 RF00107    cm       42       65    93003    93027      +    no    1 0.56   0.0   13.8      0.16 ?   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+NZ_JBNWEP010000004.1 -         FinP                 RF00107    cm       42       65    93027    93003      -    no    1 0.56   0.0   12.9      0.26 ?   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+NZ_JBNWEP010000004.1 -         FinP                 RF00107    cm        1       76    73156    73105      -    no    1 0.46   0.0    7.9       4.6 ?   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+#
+# Program:         cmsearch
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SEARCH
+# Query file:      src/pyinfernal/tests/data/cms/RF00107.cm
+# Target file:     src/pyinfernal/tests/data/seqs/pANT_R100.fa
+# Option settings: cmsearch -Z 0.1 --tblout src/pyinfernal/tests/data/tables/pANT.RF00107.Z0_1.tbl src/pyinfernal/tests/data/cms/RF00107.cm src/pyinfernal/tests/data/seqs/pANT_R100.fa 
+# Current dir:     /home/althonos/Code/pyinfernal
+# Date:            Sat Jan 24 19:54:22 2026
+# [ok]

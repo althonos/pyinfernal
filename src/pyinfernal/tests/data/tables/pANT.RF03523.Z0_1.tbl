@@ -1,0 +1,14 @@
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+NZ_JBNWEP010000004.1 -         mir-4703             RF03523    cm        1       61    84523    84474      -    no    1 0.32   0.0   31.2   3.5e-06 !   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+NZ_JBNWEP010000004.1 -         mir-4703             RF03523    cm        1       61    84469    84531      +    no    1 0.35   0.0   28.2   2.4e-05 !   Escherichia coli strain UPEC100 plasmid pANT_R100, whole genome shotgun sequence
+#
+# Program:         cmsearch
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SEARCH
+# Query file:      src/pyinfernal/tests/data/cms/RF03523.cm
+# Target file:     src/pyinfernal/tests/data/seqs/pANT_R100.fa
+# Option settings: cmsearch -Z 0.1 --tblout src/pyinfernal/tests/data/tables/pANT.RF03523.Z0_1.tbl src/pyinfernal/tests/data/cms/RF03523.cm src/pyinfernal/tests/data/seqs/pANT_R100.fa 
+# Current dir:     /home/althonos/Code/pyinfernal
+# Date:            Sat Jan 24 19:54:24 2026
+# [ok]
