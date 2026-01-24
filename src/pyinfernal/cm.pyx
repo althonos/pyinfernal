@@ -302,14 +302,14 @@ cdef class CM:
         Example:
             Get the creation time for any HMM::
 
-                >>> lsu_rrna.creation_time
-                datetime.datetime(2014, 6, 16, 10, 10)
+                >>> trna.creation_time
+                datetime.datetime(2012, 4, 30, 8, 54, 53)
 
             Set the creation time manually to a different date and time::
 
                 >>> ctime = datetime.datetime(2026, 1, 15, 13, 59, 10)
-                >>> lsu_rrna.creation_time = ctime
-                >>> lsu_rrna.creation_time
+                >>> trna.creation_time = ctime
+                >>> trna.creation_time
                 datetime.datetime(2026, 1, 15, 13, 59, 10)
 
         Danger:
@@ -385,12 +385,12 @@ cdef class CMFile:
         Load the first CM from a CM file located on the
         local filesystem::
 
-            >>> with CMFile("tests/data/cms/iss33.cm") as cm_file:
+            >>> with CMFile("tests/data/cms/tRNA.c.cm") as cm_file:
             ...     cm = cm_file.read()
             >>> cm.name
-            'LSU_rRNA_bacteria'
+            'tRNA'
             >>> cm.accession
-            'RF02541'
+            'RF00005'
 
         Load all the CMs from a CM file into a `list`::
 

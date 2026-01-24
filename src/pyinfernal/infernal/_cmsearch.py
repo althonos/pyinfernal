@@ -380,7 +380,7 @@ def cmsearch(
 
             >>> hits = next(cmsearch(trna, sequences, T=5))
             >>> hits[0].score
-            65.4...
+            12.06...
 
         ``mypy`` should be able to detection which keywords can be passed 
         to `cmsearch` using a `TypedDict` annotation.

@@ -47,15 +47,12 @@ def load_tests(loader, tests, ignore):
 
     # add a sample HMM and some sequences to use with the globals
     data = os.path.realpath(os.path.join(__file__, os.pardir, "data"))
-    cm_path = os.path.join(data, "cms", "iss33.cm")
-    with pyinfernal.cm.CMFile(cm_path) as cm_file:
-        lsu_rrna = cm_file.read()
-    cm_path = os.path.join(data, "cms", "5.c.cm")
+    cm_path = os.path.join(data, "cms", "tRNA.c.cm")
     with pyinfernal.cm.CMFile(cm_path) as cm_file:
         cms = list(cm_file)
         trna = next(cm for cm in cms if cm.name == 'tRNA')
-    fna_path = os.path.join(data, "seqs", "100k-4.fa")
-    with pyhmmer.easel.SequenceFile(fna_path, alphabet=lsu_rrna.alphabet, digital=True) as seqs_file:
+    fna_path = os.path.join(data, "seqs", "pANT_R100.fa")
+    with pyhmmer.easel.SequenceFile(fna_path, alphabet=trna.alphabet, digital=True) as seqs_file:
         sequences = seqs_file.read_block()
 
     def setUp(self):
@@ -82,7 +79,6 @@ def load_tests(loader, tests, ignore):
                 cm=pyinfernal.cm,
                 pyhmmer=pyhmmer,
                 pyinfernal=pyinfernal,
-                lsu_rrna=lsu_rrna,
                 trna=trna,
                 sequences=sequences,
                 **module.__dict__
