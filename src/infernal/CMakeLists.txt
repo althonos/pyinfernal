@@ -110,7 +110,6 @@ foreach(_file IN ITEMS ${INFERNAL_SOURCES})
                         --output ${CMAKE_CURRENT_BINARY_DIR}/${_file}
                 DEPENDS
                     ${PROJECT_SOURCE_DIR}/patches/${_file}.patch
-                DEPENDS_EXPLICIT_ONLY
             )
         else()
             add_custom_command(
@@ -126,7 +125,6 @@ foreach(_file IN ITEMS ${INFERNAL_SOURCES})
                 DEPENDS
                     ${INFERNAL_SOURCE_DIR}/${_file}
                     ${PROJECT_SOURCE_DIR}/patches/${_file}.patch
-                DEPENDS_EXPLICIT_ONLY
             )
         endif()
     else()
@@ -139,7 +137,6 @@ foreach(_file IN ITEMS ${INFERNAL_SOURCES})
                 cmake -E copy ${INFERNAL_SOURCE_DIR}/${_file} ${CMAKE_CURRENT_BINARY_DIR}/${_file}
             DEPENDS
                 ${INFERNAL_SOURCE_DIR}/${_file}
-            DEPENDS_EXPLICIT_ONLY
         )
     endif()
     set(INFERNAL_PATCHED_SOURCES ${INFERNAL_PATCHED_SOURCES} ${CMAKE_CURRENT_BINARY_DIR}/${_file})
